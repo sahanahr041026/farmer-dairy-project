@@ -1,0 +1,11 @@
+# Environment variables & secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.pytest_cache/

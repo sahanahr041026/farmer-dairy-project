@@ -1,0 +1,264 @@
+:root {
+  /* DairySathi Color Palette */
+  --primary: #245C3A;       /* Forest green */
+  --primary-dark: #1b452c;  /* Dark forest green */
+  --primary-light: #eaf3ec; /* Soft green tint */
+  --secondary: #6FAF68;     /* Fresh leaf green */
+  --secondary-light: #d6edd4;
+  --bg-page: #F8F7EF;       /* Warm cream background */
+  --bg-card: #FFFFFF;       /* White cards */
+  --accent: #F2C45A;        /* Soft golden yellow */
+  --accent-light: #fef8e7;
+  --text-main: #24332A;     /* Dark charcoal */
+  --text-muted: #5e6d63;    /* Medium charcoal/slate */
+  --text-light: #8fa095;    /* Muted grey-green */
+  --border: #e3e6de;        /* Soft border */
+  --border-focus: #245C3A;
+  
+  /* Status Colors */
+  --status-pending: #d97706;    /* Amber */
+  --status-pending-bg: #fef3c7;
+  --status-approved: #2563eb;   /* Blue */
+  --status-approved-bg: #dbeafe;
+  --status-settled: #15803d;    /* Emerald green */
+  --status-settled-bg: #dcfce7;
+  --status-overdue: #dc2626;    /* Accessible red */
+  --status-overdue-bg: #fee2e2;
+
+  /* Typography & Sizing */
+  --font-family: 'Plus Jakarta Sans', 'Noto Sans Kannada', system-ui, -apple-system, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+  
+  --shadow-sm: 0 1px 3px rgba(36, 92, 58, 0.05);
+  --shadow-md: 0 4px 8px -1px rgba(36, 92, 58, 0.08), 0 2px 4px -1px rgba(36, 92, 58, 0.04);
+  --shadow-lg: 0 10px 20px -3px rgba(36, 92, 58, 0.10), 0 4px 6px -2px rgba(36, 92, 58, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  touch-action: manipulation;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+/* Accessibility: Visible Focus Indicators */
+*:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Layout Utilities */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  padding-bottom: 80px; /* Space for mobile bottom nav */
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding-bottom: 2rem;
+  }
+}
+
+.container-narrow {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.container-wide {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* Touch targets >= 48px */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  min-height: 48px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: #FFFFFF;
+}
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-light);
+  color: var(--primary);
+}
+.btn-secondary:hover {
+  background-color: var(--secondary);
+  color: #FFFFFF;
+}
+
+.btn-accent {
+  background-color: var(--accent);
+  color: var(--text-main);
+}
+.btn-accent:hover {
+  background-color: #e5b64c;
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text-main);
+}
+.btn-outline:hover {
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+}
+
+.btn-danger {
+  background-color: var(--status-overdue-bg);
+  color: var(--status-overdue);
+  border: 1px solid var(--status-overdue);
+}
+.btn-danger:hover {
+  background-color: var(--status-overdue);
+  color: #fff;
+}
+
+/* Cards */
+.card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 1.25rem;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Status Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.badge-pending {
+  background-color: var(--status-pending-bg);
+  color: var(--status-pending);
+}
+
+.badge-approved {
+  background-color: var(--status-approved-bg);
+  color: var(--status-approved);
+}
+
+.badge-settled {
+  background-color: var(--status-settled-bg);
+  color: var(--status-settled);
+}
+
+.badge-overdue {
+  background-color: var(--status-overdue-bg);
+  color: var(--status-overdue);
+}
+
+/* Form Controls */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0.4rem;
+}
+
+.form-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.65rem 0.9rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: #FFFFFF;
+  color: var(--text-main);
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
