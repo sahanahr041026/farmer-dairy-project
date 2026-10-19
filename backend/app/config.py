@@ -24,7 +24,10 @@ class Settings(BaseSettings):
     SMS_SENDER_ID: str = os.getenv("SMS_SENDER_ID", "DAIRYSTH")
     
     class Config:
-        env_file = ".env"
+        env_file = (
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
+            ".env"
+        )
         extra = "allow"
 
 settings = Settings()

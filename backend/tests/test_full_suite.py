@@ -200,5 +200,8 @@ def run_compliance_tests():
     print("ALL 12 RIGOROUS COMPLIANCE TESTS PASSED SUCCESSFULLY!")
     print("=" * 60 + "\n")
 
+def test_e2e_compliance_suite():
+    run_compliance_tests()
+
 if __name__ == "__main__":
     run_compliance_tests()

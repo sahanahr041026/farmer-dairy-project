@@ -132,18 +132,30 @@ class MilkRateRule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     cooperative_id = Column(Integer, ForeignKey("cooperatives.id"), nullable=False, index=True)
-    base_rate = Column(Float, nullable=False, default=38.0) # Base rate per litre at standard quality
+    rule_name = Column(String(100), nullable=False, default="Standard Quality Matrix (Demo)")
+    version = Column(String(20), nullable=False, default="1.0")
+    calculation_method = Column(String(50), nullable=False, default="fat_snf_formula") # "fat_snf_formula" or "flat_rate"
+    flat_rate = Column(Float, nullable=False, default=40.0) # Used when calculation_method == 'flat_rate'
+    base_rate = Column(Float, nullable=False, default=40.0) # Base rate per litre at standard quality
     base_fat = Column(Float, nullable=False, default=4.0)
     base_snf = Column(Float, nullable=False, default=8.5)
-    fat_rate_step = Column(Float, nullable=False, default=0.40) # Rate adjustment per 0.1% fat diff
-    snf_rate_step = Column(Float, nullable=False, default=0.25) # Rate adjustment per 0.1% snf diff
-    min_fat = Column(Float, nullable=False, default=3.0)
-    min_snf = Column(Float, nullable=False, default=7.5)
+    fat_rate_step = Column(Float, nullable=False, default=0.45) # Rate adjustment per 0.1% fat diff
+    snf_rate_step = Column(Float, nullable=False, default=0.30) # Rate adjustment per 0.1% snf diff
+    min_fat = Column(Float, nullable=False, default=2.0)
+    max_fat = Column(Float, nullable=False, default=12.0)
+    min_snf = Column(Float, nullable=False, default=5.0)
+    max_snf = Column(Float, nullable=False, default=12.0)
+    min_rate = Column(Float, nullable=False, default=20.0)
+    max_rate = Column(Float, nullable=False, default=80.0)
     effective_date = Column(Date, nullable=False, default=datetime.date.today)
+    effective_to = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
+    created_by_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     cooperative = relationship("Cooperative", back_populates="rate_rules")
+    creator = relationship("AdminUser")
 
 
 class MilkCollection(Base):
@@ -159,15 +171,20 @@ class MilkCollection(Base):
     snf_percentage = Column(Float, nullable=True)
     rate_per_litre = Column(Float, nullable=False)
     total_amount = Column(Float, nullable=False)
+    rate_rule_id = Column(Integer, ForeignKey("milk_rate_rules.id"), nullable=True)
+    calculation_method = Column(String(50), default="fat_snf_formula") # "fat_snf_formula" or "flat_rate"
+    record_status = Column(String(30), default="recorded") # "recorded", "corrected"
     payment_status = Column(String(30), default="pending") # pending, approved, settled
     settlement_id = Column(Integer, nullable=True)
     recorded_by_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    correction_reason = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     cooperative = relationship("Cooperative", back_populates="collections")
     farmer = relationship("Farmer", back_populates="collections")
+    rate_rule = relationship("MilkRateRule")
     audits = relationship("MilkRecordAudit", back_populates="collection", cascade="all, delete-orphan")
 
 
@@ -183,12 +200,15 @@ class MilkRecordAudit(Base):
     new_fat = Column(Float, nullable=True)
     previous_snf = Column(Float, nullable=True)
     new_snf = Column(Float, nullable=True)
+    previous_rate = Column(Float, nullable=True)
+    new_rate = Column(Float, nullable=True)
     previous_amount = Column(Float, nullable=False)
     new_amount = Column(Float, nullable=False)
     reason = Column(String(255), nullable=False)
     corrected_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     collection = relationship("MilkCollection", back_populates="audits")
+    admin = relationship("AdminUser")
 
 
 class PaymentSettlement(Base):

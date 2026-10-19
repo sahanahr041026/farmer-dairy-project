@@ -156,26 +156,44 @@ class CattleResponse(BaseModel):
 
 # ----------------- Milk Collection & Rates -----------------
 class MilkRateRuleCreate(BaseModel):
-    base_rate: float
+    rule_name: Optional[str] = "Standard Quality Matrix (Demo)"
+    version: Optional[str] = "1.0"
+    calculation_method: Optional[str] = "fat_snf_formula" # "fat_snf_formula" or "flat_rate"
+    flat_rate: Optional[float] = 40.0
+    base_rate: float = 40.0
     base_fat: float = 4.0
     base_snf: float = 8.5
-    fat_rate_step: float = 0.40
-    snf_rate_step: float = 0.25
-    min_fat: float = 3.0
-    min_snf: float = 7.5
+    fat_rate_step: float = 0.45
+    snf_rate_step: float = 0.30
+    min_fat: float = 2.0
+    max_fat: float = 12.0
+    min_snf: float = 5.0
+    max_snf: float = 12.0
+    min_rate: float = 20.0
+    max_rate: float = 80.0
     effective_date: datetime.date = Field(default_factory=datetime.date.today)
+    effective_to: Optional[datetime.date] = None
 
 class MilkRateRuleResponse(BaseModel):
     id: int
     cooperative_id: int
+    rule_name: str
+    version: str
+    calculation_method: str
+    flat_rate: float
     base_rate: float
     base_fat: float
     base_snf: float
     fat_rate_step: float
     snf_rate_step: float
     min_fat: float
+    max_fat: float
     min_snf: float
+    max_snf: float
+    min_rate: float
+    max_rate: float
     effective_date: datetime.date
+    effective_to: Optional[datetime.date] = None
     is_active: bool
 
     class Config:
@@ -207,6 +225,8 @@ class MilkAuditResponse(BaseModel):
     new_fat: Optional[float]
     previous_snf: Optional[float]
     new_snf: Optional[float]
+    previous_rate: Optional[float] = None
+    new_rate: Optional[float] = None
     previous_amount: float
     new_amount: float
     reason: str
@@ -228,7 +248,11 @@ class MilkCollectionResponse(BaseModel):
     snf_percentage: Optional[float]
     rate_per_litre: float
     total_amount: float
+    rate_rule_id: Optional[int] = None
+    calculation_method: Optional[str] = "fat_snf_formula"
+    record_status: Optional[str] = "recorded"
     payment_status: str
+    correction_reason: Optional[str] = None
     notes: Optional[str]
     created_at: datetime.datetime
     updated_at: datetime.datetime
@@ -236,6 +260,14 @@ class MilkCollectionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class MilkHistorySummaryResponse(BaseModel):
+    total_litres: float
+    total_amount: float
+    total_records: int
+    morning_litres: float
+    evening_litres: float
+
 
 # ----------------- Payments & Settlements -----------------
 class SettlementCreate(BaseModel):
@@ -349,7 +381,11 @@ class PassbookSummaryResponse(BaseModel):
     total_litres: float
     avg_fat: float
     avg_snf: float
-    total_earnings: float
+    total_earnings: float # Clearly calculated milk value
     paid_amount: float
     pending_amount: float
+    today_litres: Optional[float] = 0.0
+    today_earnings: Optional[float] = 0.0
+    month_litres: Optional[float] = 0.0
+    month_earnings: Optional[float] = 0.0
     records: List[MilkCollectionResponse]

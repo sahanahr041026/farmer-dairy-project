@@ -236,5 +236,8 @@ def run_phase2_tests():
     print("ALL PHASE 2 DATABASE & AUTHENTICATION TESTS PASSED!")
     print("=" * 65 + "\n")
 
+def test_phase2_auth_and_isolation():
+    run_phase2_tests()
+
 if __name__ == "__main__":
     run_phase2_tests()

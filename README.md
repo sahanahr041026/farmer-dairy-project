@@ -98,17 +98,26 @@ cd backend
 # Configure environment
 cp .env.example .env
 
-# Run database migrations and seed script
+# Run database migrations (applies 0003 Phase 3 schema extensions)
+python -m app.migrate
+
+# Run database seed script
 python -m app.seed
 
 # Start FastAPI server
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-API Documentation will be available at `http://localhost:8000/docs`.
+API Documentation is available at `http://localhost:8000/docs`.
 
 ### 2. Frontend Setup
 ```bash
 cd frontend
+
+# Install dependencies if not already installed
+npm install
+
+# Build verification
+npm run build
 
 # Start Vite Development Server
 npm run dev -- --port 5174
@@ -117,32 +126,76 @@ Access the application at `http://localhost:5174/`.
 
 ---
 
-## 6. Running Acceptance Tests
+## 6. Phase 3: Milk Collection Management & Pricing Engine
 
-Run the comprehensive 12-point end-to-end compliance test suite:
+### A. Dynamic Rate Rules & Quality Matrix
+DairySathi supports both flat-rate and fat/SNF-quality procurement rate rules per cooperative:
+- **Flat Rate Method (`flat_rate`):**
+  $$\text{Total Amount} = \text{Milk Quantity (L)} \times \text{Flat Rate per Litre}$$
+- **Quality Formula Method (`fat_snf_formula`):**
+  $$\text{Rate per Litre} = \text{Base Rate} + (\text{Fat} - \text{Base Fat}) \times 10 \times \text{Fat Step} + (\text{SNF} - \text{Base SNF}) \times 10 \times \text{SNF Step}$$
+  - Clamped within configured $[\text{Min Rate}, \text{Max Rate}]$ bounds.
+  - Total milk value: $\text{Quantity} \times \text{Rate per Litre}$, rounded to 2 decimal places.
+- **Rule Resolution by Effective Window:** Rate rules specify `effective_date` and optional `effective_to`. Collections resolve the authoritative rule active on the collection date. Historical milk records preserve their frozen rate, rule ID, and calculation inputs.
+- **Policy Disclosure:** All demonstration rate rules are clearly disclosed as fictional academic demo data in both UI and docs. Admins can update rate policies via `/admin/rates` to reflect cooperative-approved pricing.
 
-```bash
-cd backend
-python tests/test_full_suite.py
-```
+### B. Admin Milk Intake Workflow
+1. **Searchable Farmer Picker:** Filter farmers within the admin's cooperative by name, farmer UID (`DS-FARM-xxx`), or registered phone number.
+2. **Live Calculation Preview:** Computes estimated rate and milk value client-side as quantity, fat, or SNF change.
+3. **Double-Click & Concurrent Submission Protection:** Save button disables and displays loading indicator during network transit.
+4. **Duplicate Protection:** Submitting a duplicate intake for the same farmer, date, and session returns `HTTP 409 Conflict`. Admin is prompted via modal with the existing record details and can cancel or explicitly confirm an overwrite (`allow_duplicate=true`).
+5. **Authoritative Server Calculation:** Frontend totals are never trusted; the backend re-validates physical bounds, resolves the rate rule, computes rate and total value, and persists inside an ACID transaction.
+6. **Audit Trail for Corrections:** Records cannot be silently modified. Admin must provide a mandatory reason. Previous and new quantities, fat, SNF, and rates are logged into `MilkRecordAudit` with admin ID and timestamp, marking status as `corrected`.
 
-### Verified Test Cases:
-1. Admin authentication using registered cooperative code and credentials.
-2. Admin records milk intake with quality rate calculation.
-3. Automatic synchronization: Farmer logs in and sees newly saved records immediately.
-4. Downloadable digital PDF e-passbook generation.
-5. Record corrections with mandatory audit trail reflected in farmer portal.
-6. Financial payment settlement tracking from pending to completed.
-7. Cattle care and vaccination reminders synchronization.
-8. Multi-tenant security: Farmer cannot view another farmer's data.
-9. Cooperative security: Admin cannot access records from other cooperatives.
-10. SMS notifications module mock/live transparency.
-11. Robust input validation and human-readable error messages.
-12. Accessibility compliance, touch targets, and responsive layout.
+### C. Farmer Portal Passbook & Live Sync
+- **Transparent Earnings Disclosure:** Passbook displays all collections with session, quantity, fat, SNF, rate/L, and total value. All earnings are clearly labeled as **"Milk Value / Calculated Earnings" (ಹಾಲು ಮೌಲ್ಯ / ಲೆಕ್ಕಹಾಕಿದ ಆದಾಯ)**, with a clear disclaimer that payment disbursal occurs during cooperative batch settlements.
+- **Summary Cards:** Shows Today's Litres & Milk Value, Monthly Litres & Milk Value, and Net Filtered Total.
+- **Live Synchronization:** Automatic 20-second polling and `visibilitychange` auto-refresh updates the farmer view when switching back to the browser tab. Manual instant "Refresh" button provides visual confirmation of data freshness.
+- **Audit Explanation:** Corrected collections display an amber "Corrected" badge and the cooperative admin's logged explanation reason.
+- **Mobile Usability:** Large touch targets ($\ge 48\text{px}$) and fully localized bilingual display (English & Kannada).
 
 ---
 
-## 7. External Integrations & Fallbacks
+## 7. Running Acceptance Tests
+
+Run all unit, integration, security isolation, and compliance test suites:
+
+```bash
+# Run entire test suite with pytest from project root
+python -m pytest backend/tests -v
+```
+
+Or execute individual test suites:
+```bash
+# Phase 3 Milk Collection, Pricing Rules & Farmer Passbook Tests
+python -m pytest backend/tests/test_phase3_milk_rates.py -v
+
+# Phase 2 Authentication, RBAC & Multi-Tenant Isolation Tests
+python -m pytest backend/tests/test_phase2_auth.py -v
+
+# Full 12-point End-to-End Compliance Suite
+python -m pytest backend/tests/test_full_suite.py -v
+
+# Complete API Workflow Test
+python -m pytest backend/tests/test_api_flow.py -v
+```
+
+### Verified Test Cases:
+1. **Rate Rule Calculation:** Flat rate vs quality matrix, bounds clamping, decimal rounding.
+2. **Effective Window Resolution:** Past, present, and future rate rule resolution.
+3. **Physical Bounds Validation:** Zero/negative quantities, out-of-range fat/SNF, invalid sessions rejected with HTTP 422.
+4. **Duplicate Intake Protection:** Same farmer + date + session blocked with HTTP 409 Conflict.
+5. **Admin-Farmer Automatic Synchronization:** Admin record creation instantly visible on farmer passbook with updated daily/monthly totals.
+6. **Audit Trail Logging:** Record correction requires mandatory reason; previous and new values permanently stored.
+7. **Database Persistence:** Verification across fresh SQLAlchemy sessions.
+8. **Multi-Tenant Cooperative Isolation:** Admins restricted strictly to their cooperative; cross-tenant access blocked.
+9. **Farmer IDOR Protection:** Farmers restricted strictly to their own milk collections and passbook.
+10. **Accessibility & Responsive Design:** $48\text{px}$ touch targets and bilingual token verification.
+
+---
+
+## 8. External Integrations & Fallbacks
 
 - **SMS Gateway:** Set `SMS_GATEWAY_API_KEY` and `SMS_SENDER_ID` in `.env`. When not provided, the system operates in **Simulated Development Mode**, previewing the message, validating recipient numbers, and logging the attempt without claiming false delivery.
 - **AI Cattle Care Assistant:** Set `GEMINI_API_KEY` in `.env` to enable live LLM responses. When absent, the system seamlessly uses a curated, verified expert veterinary FAQ knowledge base clearly labeled as `[Expert Curated Dairy Advisory — Verified Local Mode]`.
+

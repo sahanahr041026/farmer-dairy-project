@@ -68,6 +68,24 @@ def get_passbook(
         resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in r.audits]
         record_responses.append(resp)
 
+    # Daily (today) metrics
+    today_records = db.query(models.MilkCollection).filter(
+        models.MilkCollection.farmer_id == farmer.id,
+        models.MilkCollection.collection_date == today
+    ).all()
+    today_litres = sum(r.quantity_litres for r in today_records)
+    today_earnings = sum(r.total_amount for r in today_records)
+
+    # Monthly metrics (first of current month to today)
+    month_start = today.replace(day=1)
+    month_records = db.query(models.MilkCollection).filter(
+        models.MilkCollection.farmer_id == farmer.id,
+        models.MilkCollection.collection_date >= month_start,
+        models.MilkCollection.collection_date <= today
+    ).all()
+    month_litres = sum(r.quantity_litres for r in month_records)
+    month_earnings = sum(r.total_amount for r in month_records)
+
     return schemas.PassbookSummaryResponse(
         farmer_id=farmer.id,
         farmer_name=farmer.full_name,
@@ -80,6 +98,10 @@ def get_passbook(
         total_earnings=round(total_amount, 2),
         paid_amount=round(paid_amount, 2),
         pending_amount=round(pending_amount, 2),
+        today_litres=round(today_litres, 1),
+        today_earnings=round(today_earnings, 2),
+        month_litres=round(month_litres, 1),
+        month_earnings=round(month_earnings, 2),
         records=record_responses
     )
 
