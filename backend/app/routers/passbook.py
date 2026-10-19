@@ -114,27 +114,38 @@ def download_passbook_pdf(
     db: Session = Depends(get_db)
 ):
     """
-    Generates and downloads a digital e-passbook PDF statement for the requested period.
+    Generates and downloads an authorized digital e-passbook PDF statement for the requested period.
+    Strictly enforces cooperative isolation and farmer data ownership.
+    Logs audit record of the statement generation.
     """
     coop_id = payload.get("cooperative_id")
     role = payload.get("role")
 
-    target_farmer_id = payload.get("user_id") if role == "farmer" else farmer_id
-    if not target_farmer_id:
-        raise HTTPException(status_code=400, detail="farmer_id is required.")
+    # Security check: Farmers can only download their own passbook
+    if role == "farmer":
+        target_farmer_id = payload.get("user_id")
+    else:
+        # Admin must specify farmer_id
+        if not farmer_id:
+            raise HTTPException(status_code=400, detail="farmer_id is required for admin statement generation.")
+        target_farmer_id = farmer_id
 
     farmer = db.query(models.Farmer).filter(
         models.Farmer.id == target_farmer_id,
         models.Farmer.cooperative_id == coop_id
     ).first()
     if not farmer:
-        raise HTTPException(status_code=404, detail="Farmer not found.")
+        raise HTTPException(status_code=404, detail="Farmer profile not found in your cooperative.")
 
     today = datetime.date.today()
     if not start_date:
         start_date = today.replace(day=1)
     if not end_date:
         end_date = today
+
+    # Date range validation
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Start date cannot be after end date.")
 
     records = db.query(models.MilkCollection).filter(
         models.MilkCollection.farmer_id == farmer.id,
@@ -143,6 +154,22 @@ def download_passbook_pdf(
     ).order_by(models.MilkCollection.collection_date.asc(), models.MilkCollection.session.asc()).all()
 
     coop = farmer.cooperative
+    reference_no = f"DS-PB-{coop.code}-{farmer.farmer_uid}-{start_date.strftime('%Y%m%d')}-{end_date.strftime('%Y%m%d')}"
+
+    # Log statement generation audit
+    audit = models.PassbookDownloadAudit(
+        cooperative_id=coop_id,
+        farmer_id=farmer.id,
+        requested_by_role=role or "farmer",
+        requested_by_id=payload.get("user_id") or 0,
+        period_start=start_date,
+        period_end=end_date,
+        record_count=len(records),
+        total_milk_value=sum(float(r.total_amount) for r in records),
+        reference_number=reference_no
+    )
+    db.add(audit)
+    db.commit()
 
     records_data = []
     for r in records:
@@ -154,7 +181,9 @@ def download_passbook_pdf(
             "snf_percentage": r.snf_percentage,
             "rate_per_litre": r.rate_per_litre,
             "total_amount": r.total_amount,
-            "payment_status": r.payment_status
+            "payment_status": r.payment_status,
+            "record_status": r.record_status,
+            "correction_reason": r.correction_reason
         })
 
     pdf_bytes = generate_passbook_pdf(
@@ -162,7 +191,8 @@ def download_passbook_pdf(
             "name": coop.name,
             "code": coop.code,
             "locality": coop.locality,
-            "contact_phone": coop.contact_phone
+            "contact_phone": coop.contact_phone,
+            "address": coop.address
         },
         farmer={
             "full_name": farmer.full_name,
@@ -174,7 +204,8 @@ def download_passbook_pdf(
         },
         records=records_data,
         period_start=start_date.isoformat(),
-        period_end=end_date.isoformat()
+        period_end=end_date.isoformat(),
+        reference_no=reference_no
     )
 
     filename = f"DairySathi_Passbook_{farmer.farmer_uid}_{start_date}_{end_date}.pdf"
@@ -185,3 +216,4 @@ def download_passbook_pdf(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+

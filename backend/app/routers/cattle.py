@@ -95,17 +95,26 @@ def get_reminders(
 
     reminders = query.order_by(models.CattleReminder.due_date.asc()).all()
 
-    # Automatically flag overdue if date has passed and still upcoming
     result = []
     for r in reminders:
-        if r.status == "upcoming" and r.due_date < today:
-            r.status = "overdue"
+        # Dynamically compute status based on actual dates
+        if r.status not in ["completed", "cancelled"]:
+            if r.administered_date:
+                r.status = "completed"
+            elif r.due_date < today:
+                r.status = "overdue"
+            elif r.due_date <= today + datetime.timedelta(days=3):
+                r.status = "due_soon"
+            else:
+                r.status = "upcoming"
             db.commit()
 
         resp = schemas.CattleReminderResponse.from_orm(r)
         if r.cattle:
             resp.cattle_name = r.cattle.name
             resp.cattle_tag = r.cattle.tag_number
+        if r.farmer:
+            resp.farmer_name = r.farmer.full_name
         result.append(resp)
 
     return result
@@ -122,7 +131,7 @@ def create_reminder(
         models.Farmer.cooperative_id == admin.cooperative_id
     ).first()
     if not farmer:
-        raise HTTPException(status_code=404, detail="Farmer not found.")
+        raise HTTPException(status_code=404, detail="Farmer not found in your cooperative.")
 
     reminder = models.CattleReminder(
         cooperative_id=admin.cooperative_id,
@@ -133,23 +142,24 @@ def create_reminder(
         care_type=data.care_type,
         due_date=data.due_date,
         status="upcoming",
-        veterinarian_notes=data.veterinarian_notes
+        guidance=data.guidance.strip() if data.guidance else None,
+        veterinarian_notes=data.veterinarian_notes.strip() if data.veterinarian_notes else None
     )
     db.add(reminder)
     db.flush()
 
-    # Notify farmer
+    # Notify farmer in-app
+    animal_str = f" for {reminder.cattle.name} ({reminder.cattle.tag_number})" if reminder.cattle else ""
     notif = models.Notification(
         cooperative_id=admin.cooperative_id,
         farmer_id=farmer.id,
-        title=f"Reminder: {data.title}",
-        title_kn=f"ಜ್ಞಾಪನೆ: {data.title_kn or data.title}",
-        message=f"{data.care_type.capitalize()} scheduled for {data.due_date}. {data.veterinarian_notes or ''}",
+        title=f"Vaccination / Care Reminder: {data.title}",
+        title_kn=f"ಲಸಿಕೆ / ಆರೈಕೆ ಜ್ಞಾಪನೆ: {data.title_kn or data.title}",
+        message=f"{data.care_type.capitalize()}{animal_str} is due on {data.due_date}. {data.guidance or ''}",
         message_kn=f"{data.due_date} ರಂದು {data.care_type} ನಿಗದಿಯಾಗಿದೆ.",
         category="cattle"
     )
     db.add(notif)
-
     db.commit()
     db.refresh(reminder)
 
@@ -157,6 +167,7 @@ def create_reminder(
     if reminder.cattle:
         resp.cattle_name = reminder.cattle.name
         resp.cattle_tag = reminder.cattle.tag_number
+    resp.farmer_name = farmer.full_name
     return resp
 
 @router.put("/reminders/{reminder_id}", response_model=schemas.CattleReminderResponse)
@@ -166,12 +177,16 @@ def update_reminder(
     admin: models.AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
+    """
+    Updates or verifies completion of a vaccination schedule.
+    Marking completed requires administration details.
+    """
     reminder = db.query(models.CattleReminder).filter(
         models.CattleReminder.id == reminder_id,
         models.CattleReminder.cooperative_id == admin.cooperative_id
     ).first()
     if not reminder:
-        raise HTTPException(status_code=404, detail="Reminder not found.")
+        raise HTTPException(status_code=404, detail="Reminder not found in your cooperative.")
 
     reminder.status = data.status
     if data.administered_date:
@@ -179,9 +194,16 @@ def update_reminder(
     elif data.status == "completed" and not reminder.administered_date:
         reminder.administered_date = datetime.date.today()
 
+    if data.administered_by:
+        reminder.administered_by = data.administered_by
+    if data.next_due_date:
+        reminder.next_due_date = data.next_due_date
+    if data.guidance:
+        reminder.guidance = data.guidance
     if data.veterinarian_notes:
         reminder.veterinarian_notes = data.veterinarian_notes
 
+    reminder.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(reminder)
 
@@ -189,4 +211,25 @@ def update_reminder(
     if reminder.cattle:
         resp.cattle_name = reminder.cattle.name
         resp.cattle_tag = reminder.cattle.tag_number
+    if reminder.farmer:
+        resp.farmer_name = reminder.farmer.full_name
     return resp
+
+@router.delete("/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_reminder(
+    reminder_id: int,
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Cancels or deletes an incorrect reminder before sending."""
+    reminder = db.query(models.CattleReminder).filter(
+        models.CattleReminder.id == reminder_id,
+        models.CattleReminder.cooperative_id == admin.cooperative_id
+    ).first()
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Reminder not found.")
+
+    db.delete(reminder)
+    db.commit()
+    return None
+

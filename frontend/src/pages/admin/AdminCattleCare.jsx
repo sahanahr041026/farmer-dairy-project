@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { CattleIcon, CalendarIcon, PlusIcon, CheckCircleIcon, AlertTriangleIcon } from '../../components/Icons';
+import { CattleIcon, CalendarIcon, PlusIcon, CheckCircleIcon, AlertTriangleIcon, SMSIcon } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 
 export function AdminCattleCare() {
@@ -8,6 +8,11 @@ export function AdminCattleCare() {
   const [cattleList, setCattleList] = useState([]);
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Feedback State
+  const [actionSuccess, setActionSuccess] = useState('');
+  const [actionError, setActionError] = useState('');
 
   // New Reminder Modal
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
@@ -20,6 +25,7 @@ export function AdminCattleCare() {
     const d = new Date(); d.setDate(d.getDate() + 7);
     return d.toISOString().split('T')[0];
   });
+  const [remGuidance, setRemGuidance] = useState('');
   const [vetNotes, setVetNotes] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -34,12 +40,23 @@ export function AdminCattleCare() {
   const [cStatus, setCStatus] = useState('Milking');
   const [cNotes, setCNotes] = useState('');
 
+  // Complete Administration Modal
+  const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  const [completingRem, setCompletingRem] = useState(null);
+  const [adminBy, setAdminBy] = useState('Dr. Ramesh Hegde (KMF Vet)');
+  const [completionNotes, setCompletionNotes] = useState('');
+  const [nextDueDate, setNextDueDate] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + 6);
+    return d.toISOString().split('T')[0];
+  });
+
   const loadData = async () => {
     try {
+      setLoading(true);
       const [fList, cList, rList] = await Promise.all([
-        api.getFarmers(),
-        api.getCattle(),
-        api.getReminders()
+        api.getFarmers().catch(() => []),
+        api.getCattle().catch(() => []),
+        api.getReminders().catch(() => [])
       ]);
       setFarmers(fList);
       setCattleList(cList);
@@ -69,11 +86,13 @@ export function AdminCattleCare() {
         title_kn: remTitleKn || undefined,
         care_type: careType,
         due_date: dueDate,
+        guidance: remGuidance || undefined,
         veterinarian_notes: vetNotes || undefined
       });
       setFormSuccess("Cattle care schedule saved and farmer notified!");
       setRemTitle('');
       setRemTitleKn('');
+      setRemGuidance('');
       setVetNotes('');
       loadData();
       setTimeout(() => {
@@ -108,24 +127,70 @@ export function AdminCattleCare() {
     }
   };
 
-  const handleCompleteReminder = async (remId) => {
+  const openCompletionModal = (rem) => {
+    setCompletingRem(rem);
+    setCompletionNotes(rem.veterinarian_notes || '');
+    setIsCompletionModalOpen(true);
+  };
+
+  const handleConfirmCompletion = async (e) => {
+    e.preventDefault();
+    if (!completingRem) return;
     try {
-      await api.updateReminder(remId, { status: 'completed' });
+      await api.updateReminder(completingRem.id, {
+        status: 'completed',
+        administered_by: adminBy.trim() || 'Cooperative Vet Officer',
+        veterinarian_notes: completionNotes.trim() || undefined,
+        next_due_date: nextDueDate || undefined
+      });
+      setIsCompletionModalOpen(false);
+      setActionSuccess(`Recorded administration for "${completingRem.title}". Next due date updated.`);
+      setTimeout(() => setActionSuccess(''), 4000);
       loadData();
-    } catch (e) {
-      alert("Error: " + e.message);
+    } catch (err) {
+      alert("Error recording completion: " + err.message);
     }
   };
 
+  const handleSendReminderSMS = async (rem) => {
+    setActionError('');
+    setActionSuccess('');
+    try {
+      const res = await api.dispatchVaccinationSMS(rem.id);
+      setActionSuccess(res.message || `SMS notification queued for ${rem.farmer_name || 'farmer'}.`);
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      setActionError("Failed to queue SMS: " + err.message);
+      setTimeout(() => setActionError(''), 4000);
+    }
+  };
+
+  const handleCancelReminder = async (remId) => {
+    if (!window.confirm("Are you sure you want to cancel this scheduled reminder?")) return;
+    try {
+      await api.deleteReminder(remId);
+      setActionSuccess("Reminder cancelled.");
+      setTimeout(() => setActionSuccess(''), 3000);
+      loadData();
+    } catch (err) {
+      alert("Error cancelling reminder: " + err.message);
+    }
+  };
+
+  const filteredReminders = reminders.filter(r => {
+    if (statusFilter === 'all') return true;
+    return r.status === statusFilter;
+  });
+
   return (
     <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
-            Cattle Health & Veterinary Coordination
+            Cattle Health, Vaccination & Reminders
           </h1>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
-            Track registered animals, schedule vaccination camps, and monitor deworming drives
+            Schedule veterinary drives, log administered doses, and transmit direct SMS reminders to farmers
           </p>
         </div>
 
@@ -147,52 +212,171 @@ export function AdminCattleCare() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        {/* Reminders List */}
-        <div className="card">
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}>
-            Vaccination & Care Schedules ({reminders.length})
-          </h3>
+      {actionSuccess && (
+        <div style={{ padding: '0.85rem', backgroundColor: 'var(--status-settled-bg)', color: 'var(--status-settled)', borderRadius: 6, marginBottom: '1rem', fontWeight: 600 }}>
+          {actionSuccess}
+        </div>
+      )}
+      {actionError && (
+        <div style={{ padding: '0.85rem', backgroundColor: 'var(--status-overdue-bg)', color: 'var(--status-overdue)', borderRadius: 6, marginBottom: '1rem', fontWeight: 600 }}>
+          {actionError}
+        </div>
+      )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: 450, overflowY: 'auto' }}>
-            {reminders.map((r) => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        {/* Reminders List Card */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
+              Care Schedules ({filteredReminders.length})
+            </h3>
+
+            <select
+              className="form-input"
+              style={{ minHeight: 32, padding: '0.2rem 0.5rem', fontSize: '0.82rem', width: 'auto' }}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Statuses ({reminders.length})</option>
+              <option value="due_soon">Due Soon (&lt; 3 Days)</option>
+              <option value="overdue">Overdue</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: 520, overflowY: 'auto' }}>
+            {filteredReminders.map((r) => {
               const isOverdue = r.status === 'overdue';
+              const isDueSoon = r.status === 'due_soon';
               const isCompleted = r.status === 'completed';
+              const isCancelled = r.status === 'cancelled';
+
+              let borderAccent = 'var(--status-pending)';
+              let badgeBg = '#eff6ff';
+              let badgeColor = '#1d4ed8';
+
+              if (isOverdue) {
+                borderAccent = '#dc2626';
+                badgeBg = '#fee2e2';
+                badgeColor = '#b91c1c';
+              } else if (isDueSoon) {
+                borderAccent = '#d97706';
+                badgeBg = '#fef3c7';
+                badgeColor = '#b45309';
+              } else if (isCompleted) {
+                borderAccent = '#10b981';
+                badgeBg = '#d1fae5';
+                badgeColor = '#065f46';
+              } else if (isCancelled) {
+                borderAccent = '#6b7280';
+                badgeBg = '#f3f4f6';
+                badgeColor = '#374151';
+              }
 
               return (
                 <div
                   key={r.id}
                   style={{
-                    padding: '0.85rem',
+                    padding: '0.9rem',
                     backgroundColor: 'var(--bg-page)',
                     borderRadius: 8,
-                    borderLeft: `4px solid ${isOverdue ? 'var(--status-overdue)' : (isCompleted ? 'var(--status-settled)' : 'var(--status-pending)')}`
+                    borderLeft: `5px solid ${borderAccent}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <span className={`badge badge-${r.status}`} style={{ fontSize: '0.72rem', marginBottom: '0.2rem' }}>
-                        {r.status}
-                      </span>
-                      <h4 style={{ fontWeight: 700, fontSize: '0.95rem', margin: '0.2rem 0' }}>{r.title}</h4>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        Target: {r.cattle_name ? `${r.cattle_name} (${r.cattle_tag})` : 'All herd'} | Due: <strong>{r.due_date}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 4,
+                          backgroundColor: badgeBg,
+                          color: badgeColor,
+                          textTransform: 'uppercase'
+                        }}>
+                          {r.status.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                          {r.care_type}
+                        </span>
+                      </div>
+                      <h4 style={{ fontWeight: 700, fontSize: '0.98rem', margin: '0.2rem 0' }}>{r.title}</h4>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        Farmer: <strong>{r.farmer_name || `Farmer #${r.farmer_id}`}</strong>
+                        {r.cattle_name ? ` • Animal: ${r.cattle_name} (${r.cattle_tag})` : ' • Herd-wide'}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
+                        Due: <strong style={{ color: isOverdue ? '#dc2626' : (isDueSoon ? '#d97706' : 'var(--text-main)') }}>{r.due_date}</strong>
                       </div>
                     </div>
+                  </div>
 
-                    {!isCompleted && (
-                      <button
-                        onClick={() => handleCompleteReminder(r.id)}
-                        className="btn btn-secondary touch-target"
-                        style={{ minHeight: 32, padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
-                      >
-                        Mark Done
-                      </button>
+                  {isCompleted && (
+                    <div style={{ fontSize: '0.78rem', color: '#065f46', backgroundColor: '#d1fae5', padding: '0.3rem 0.5rem', borderRadius: 4 }}>
+                      ✓ Administered by: <strong>{r.administered_by || 'Veterinary Officer'}</strong>
+                      {r.next_due_date && <span> • Next booster: <strong>{r.next_due_date}</strong></span>}
+                    </div>
+                  )}
+
+                  {r.guidance && (
+                    <div style={{ fontSize: '0.78rem', color: '#92400e', backgroundColor: '#fef3c7', padding: '0.3rem 0.5rem', borderRadius: 4 }}>
+                      Guidance: {r.guidance}
+                    </div>
+                  )}
+
+                  {r.veterinarian_notes && (
+                    <div style={{ fontSize: '0.78rem', color: 'var(--primary)', fontStyle: 'italic' }}>
+                      Notes: {r.veterinarian_notes}
+                    </div>
+                  )}
+
+                  {/* Actions Bar */}
+                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem', paddingTop: '0.4rem', borderTop: '1px solid rgba(0,0,0,0.06)', flexWrap: 'wrap' }}>
+                    {!isCompleted && !isCancelled && (
+                      <>
+                        <button
+                          onClick={() => openCompletionModal(r)}
+                          className="btn btn-primary"
+                          style={{ minHeight: 30, padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+                        >
+                          Record Administration
+                        </button>
+
+                        <button
+                          onClick={() => handleSendReminderSMS(r)}
+                          className="btn btn-outline"
+                          style={{ minHeight: 30, padding: '0.2rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                          title="Queue SMS notification to farmer"
+                        >
+                          <SMSIcon size={12} />
+                          <span>Send SMS</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleCancelReminder(r.id)}
+                          className="btn btn-outline"
+                          style={{ minHeight: 30, padding: '0.2rem 0.5rem', fontSize: '0.75rem', color: '#dc2626' }}
+                        >
+                          Cancel
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
               );
             })}
+
+            {filteredReminders.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                No care schedules match the selected filter.
+              </div>
+            )}
           </div>
         </div>
 
@@ -202,7 +386,7 @@ export function AdminCattleCare() {
             Registered Cattle Herd ({cattleList.length})
           </h3>
 
-          <div style={{ overflowX: 'auto', maxHeight: 450 }}>
+          <div style={{ overflowX: 'auto', maxHeight: 520 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
@@ -230,6 +414,77 @@ export function AdminCattleCare() {
           </div>
         </div>
       </div>
+
+      {/* Record Administration Modal */}
+      {completingRem && (
+        <Modal
+          isOpen={isCompletionModalOpen}
+          onClose={() => setIsCompletionModalOpen(false)}
+          title={`Record Administration: ${completingRem.title}`}
+          maxWidth={500}
+        >
+          <form onSubmit={handleConfirmCompletion}>
+            <div style={{ padding: '0.75rem', backgroundColor: 'var(--bg-page)', borderRadius: 6, marginBottom: '1rem', fontSize: '0.85rem' }}>
+              <div>Farmer: <strong>{completingRem.farmer_name}</strong></div>
+              <div>Target: <strong>{completingRem.cattle_name ? `${completingRem.cattle_name} (${completingRem.cattle_tag})` : 'Herd-wide'}</strong></div>
+              <div>Scheduled Date: <strong>{completingRem.due_date}</strong></div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Administered By (Veterinarian / Staff Name) *</label>
+              <input
+                type="text"
+                className="form-input"
+                value={adminBy}
+                onChange={(e) => setAdminBy(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Next Due Date (Booster / Next Schedule)</label>
+              <input
+                type="date"
+                className="form-input"
+                value={nextDueDate}
+                onChange={(e) => setNextDueDate(e.target.value)}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Recommended interval: 6 months for FMD booster, 1 year for Brucellosis.
+              </span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Clinical Observations & Verification Notes</label>
+              <textarea
+                className="form-input"
+                rows="2"
+                placeholder="e.g. Dose administered subcutaneously, normal vital signs..."
+                value={completionNotes}
+                onChange={(e) => setCompletionNotes(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsCompletionModalOpen(false)}
+                className="btn btn-outline"
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ flex: 1.5 }}
+              >
+                Verify & Complete Dose
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Schedule Reminder Modal */}
       <Modal
@@ -310,11 +565,22 @@ export function AdminCattleCare() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Veterinary Instructions & Notes</label>
+            <label className="form-label">Farmer Care Guidance (Preparation Steps)</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. Keep animals in shade, do not feed heavy meals 2 hours prior..."
+              value={remGuidance}
+              onChange={(e) => setRemGuidance(e.target.value)}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Veterinary Instructions & Clinical Notes</label>
             <textarea
               className="form-input"
               rows="2"
-              placeholder="Special instructions for the farmer..."
+              placeholder="Special instructions for the cooperative vet officer..."
               value={vetNotes}
               onChange={(e) => setVetNotes(e.target.value)}
             />

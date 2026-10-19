@@ -104,6 +104,7 @@ export const api = {
   },
   createReminder: (data) => request('/cattle/reminders', { method: 'POST', body: JSON.stringify(data) }),
   updateReminder: (id, data) => request(`/cattle/reminders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteReminder: (id) => request(`/cattle/reminders/${id}`, { method: 'DELETE' }),
 
   // Passbook & PDF
   getPassbook: (params = {}) => {
@@ -116,12 +117,23 @@ export const api = {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `DairySathi_Passbook_${Date.now()}.pdf`;
+    const start = params.start_date || 'period';
+    const end = params.end_date || 'latest';
+    a.download = `DairySathi_Passbook_${start}_${end}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
   },
+
+  // Announcements & Schemes
+  getAnnouncements: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/announcements${qs ? `?${qs}` : ''}`);
+  },
+  createAnnouncement: (data) => request('/announcements', { method: 'POST', body: JSON.stringify(data) }),
+  updateAnnouncement: (id, data) => request(`/announcements/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAnnouncement: (id) => request(`/announcements/${id}`, { method: 'DELETE' }),
 
   // Assistant
   getAssistantSuggestions: (lang = 'en') => request(`/assistant/suggestions?language=${lang}`),
@@ -138,8 +150,17 @@ export const api = {
   getQuality: () => request('/reports/quality'),
   exportCollectionsCsv: (start, end) => `${API_BASE}/reports/export/collections-csv?start_date=${start || ''}&end_date=${end || ''}`,
 
-  // SMS Notifications
+  // SMS Notifications & Jobs
   getSMSCampaigns: () => request('/sms/campaigns'),
+  getSMSJobs: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/sms/jobs${qs ? `?${qs}` : ''}`);
+  },
+  getSMSSummary: () => request('/sms/summary'),
   previewSMS: (data) => request('/sms/preview', { method: 'POST', body: JSON.stringify(data) }),
-  sendSMS: (data) => request('/sms/send', { method: 'POST', body: JSON.stringify(data) })
+  sendSMS: (data) => request('/sms/send', { method: 'POST', body: JSON.stringify(data) }),
+  retrySMSJob: (id) => request(`/sms/jobs/${id}/retry`, { method: 'POST' }),
+  cancelSMSJob: (id) => request(`/sms/jobs/${id}/cancel`, { method: 'POST' }),
+  dispatchVaccinationSMS: (reminderId) => request(`/sms/reminders/${reminderId}/send`, { method: 'POST' })
 };
+

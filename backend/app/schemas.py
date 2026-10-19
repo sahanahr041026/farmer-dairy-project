@@ -109,11 +109,15 @@ class CattleReminderCreate(BaseModel):
     title_kn: Optional[str] = None
     care_type: str # vaccination, deworming, vet_camp, health_check, nutrition
     due_date: datetime.date
+    guidance: Optional[str] = None
     veterinarian_notes: Optional[str] = None
 
 class CattleReminderUpdate(BaseModel):
-    status: str # upcoming, completed, overdue
+    status: str # upcoming, due_soon, overdue, completed, cancelled
     administered_date: Optional[datetime.date] = None
+    administered_by: Optional[str] = None
+    next_due_date: Optional[datetime.date] = None
+    guidance: Optional[str] = None
     veterinarian_notes: Optional[str] = None
 
 class CattleReminderResponse(BaseModel):
@@ -123,14 +127,19 @@ class CattleReminderResponse(BaseModel):
     cattle_id: Optional[int]
     cattle_name: Optional[str] = None
     cattle_tag: Optional[str] = None
+    farmer_name: Optional[str] = None
     title: str
     title_kn: Optional[str]
     care_type: str
     due_date: datetime.date
     status: str
-    administered_date: Optional[datetime.date]
-    veterinarian_notes: Optional[str]
+    administered_date: Optional[datetime.date] = None
+    administered_by: Optional[str] = None
+    next_due_date: Optional[datetime.date] = None
+    guidance: Optional[str] = None
+    veterinarian_notes: Optional[str] = None
     created_at: datetime.datetime
+    updated_at: Optional[datetime.datetime] = None
 
     class Config:
         from_attributes = True
@@ -389,3 +398,95 @@ class PassbookSummaryResponse(BaseModel):
     month_litres: Optional[float] = 0.0
     month_earnings: Optional[float] = 0.0
     records: List[MilkCollectionResponse]
+
+# ----------------- Phase 4: Announcements & Schemes -----------------
+class AnnouncementCreate(BaseModel):
+    title: str
+    title_kn: Optional[str] = None
+    content: str
+    content_kn: Optional[str] = None
+    category: str = "scheme" # scheme, milk_procurement, meeting, payment, training, general
+    target_audience: str = "all" # all, village, individual
+    target_village: Optional[str] = None
+    target_farmer_id: Optional[int] = None
+    is_published: bool = True
+    publish_date: Optional[datetime.date] = None
+    expiry_date: Optional[datetime.date] = None
+    sms_notify: bool = False
+    official_link: Optional[str] = None
+    contact_info: Optional[str] = None
+
+class AnnouncementUpdate(BaseModel):
+    title: Optional[str] = None
+    title_kn: Optional[str] = None
+    content: Optional[str] = None
+    content_kn: Optional[str] = None
+    category: Optional[str] = None
+    target_audience: Optional[str] = None
+    target_village: Optional[str] = None
+    target_farmer_id: Optional[int] = None
+    is_published: Optional[bool] = None
+    publish_date: Optional[datetime.date] = None
+    expiry_date: Optional[datetime.date] = None
+    sms_notify: Optional[bool] = None
+    official_link: Optional[str] = None
+    contact_info: Optional[str] = None
+
+class AnnouncementResponse(BaseModel):
+    id: int
+    cooperative_id: int
+    admin_id: Optional[int]
+    title: str
+    title_kn: Optional[str]
+    content: str
+    content_kn: Optional[str]
+    category: str
+    target_audience: str
+    target_village: Optional[str]
+    target_farmer_id: Optional[int]
+    is_published: bool
+    publish_date: datetime.date
+    expiry_date: Optional[datetime.date]
+    sms_notify: bool
+    official_link: Optional[str]
+    contact_info: Optional[str]
+    created_at: datetime.datetime
+    updated_at: Optional[datetime.datetime]
+
+    class Config:
+        from_attributes = True
+
+# ----------------- Phase 4: SMS Jobs & Delivery Reporting -----------------
+class SMSJobResponse(BaseModel):
+    id: int
+    cooperative_id: int
+    campaign_id: Optional[int]
+    source_type: str
+    source_id: Optional[int]
+    farmer_id: Optional[int]
+    recipient_name: str
+    phone_number: str # masked in client response
+    message_text: str
+    status: str # queued, submitted, sent, delivered, failed, cancelled
+    error_message: Optional[str]
+    retry_count: int
+    max_retries: int
+    is_mock: bool
+    scheduled_at: Optional[datetime.datetime]
+    sent_at: Optional[datetime.datetime]
+    created_at: datetime.datetime
+
+    class Config:
+        from_attributes = True
+
+class SMSDeliverySummaryResponse(BaseModel):
+    total_jobs: int
+    queued: int
+    submitted: int
+    sent: int
+    delivered: int
+    failed: int
+    cancelled: int
+    is_mock_gateway: bool
+    gateway_provider: str
+

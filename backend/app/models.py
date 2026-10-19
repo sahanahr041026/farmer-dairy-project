@@ -29,6 +29,9 @@ class Cooperative(Base):
     settlements = relationship("PaymentSettlement", back_populates="cooperative", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="cooperative", cascade="all, delete-orphan")
     sms_campaigns = relationship("SMSCampaign", back_populates="cooperative", cascade="all, delete-orphan")
+    announcements = relationship("Announcement", back_populates="cooperative", cascade="all, delete-orphan")
+    sms_jobs = relationship("SMSNotificationJob", back_populates="cooperative", cascade="all, delete-orphan")
+    passbook_audits = relationship("PassbookDownloadAudit", back_populates="cooperative", cascade="all, delete-orphan")
 
 
 class AdminUser(Base):
@@ -60,6 +63,7 @@ class Farmer(Base):
     bank_account_no = Column(String(50), nullable=True)
     ifsc_code = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
+    sms_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
@@ -70,6 +74,9 @@ class Farmer(Base):
     reminders = relationship("CattleReminder", back_populates="farmer", cascade="all, delete-orphan")
     settlements = relationship("PaymentSettlement", back_populates="farmer", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="farmer", cascade="all, delete-orphan")
+    announcements = relationship("Announcement", back_populates="farmer")
+    sms_jobs = relationship("SMSNotificationJob", back_populates="farmer")
+    passbook_audits = relationship("PassbookDownloadAudit", back_populates="farmer")
 
 
 class FarmerAccount(Base):
@@ -117,10 +124,14 @@ class CattleReminder(Base):
     title_kn = Column(String(250), nullable=True)
     care_type = Column(String(50), nullable=False) # vaccination, deworming, vet_camp, health_check, nutrition
     due_date = Column(Date, nullable=False, index=True)
-    status = Column(String(30), default="upcoming") # upcoming, completed, overdue
+    status = Column(String(30), default="upcoming") # upcoming, due_soon, overdue, completed, cancelled
     administered_date = Column(Date, nullable=True)
+    administered_by = Column(String(150), nullable=True)
+    next_due_date = Column(Date, nullable=True)
     veterinarian_notes = Column(Text, nullable=True)
+    guidance = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     cooperative = relationship("Cooperative", back_populates="reminders")
     farmer = relationship("Farmer", back_populates="reminders")
@@ -281,3 +292,80 @@ class CattleRequest(Base):
     details = Column(Text, nullable=False)
     status = Column(String(30), default="pending") # pending, approved, rejected
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cooperative_id = Column(Integer, ForeignKey("cooperatives.id"), nullable=False, index=True)
+    admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
+    title = Column(String(200), nullable=False)
+    title_kn = Column(String(250), nullable=True)
+    content = Column(Text, nullable=False)
+    content_kn = Column(Text, nullable=True)
+    category = Column(String(50), default="scheme") # scheme, milk_procurement, meeting, payment, training, general
+    target_audience = Column(String(50), default="all") # all, village, individual
+    target_village = Column(String(100), nullable=True)
+    target_farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=True)
+    is_published = Column(Boolean, default=True)
+    publish_date = Column(Date, nullable=False, default=datetime.date.today)
+    expiry_date = Column(Date, nullable=True)
+    sms_notify = Column(Boolean, default=False)
+    official_link = Column(String(255), nullable=True)
+    contact_info = Column(String(150), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    cooperative = relationship("Cooperative", back_populates="announcements")
+    admin = relationship("AdminUser")
+    farmer = relationship("Farmer", back_populates="announcements")
+
+
+class SMSNotificationJob(Base):
+    __tablename__ = "sms_notification_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cooperative_id = Column(Integer, ForeignKey("cooperatives.id"), nullable=False, index=True)
+    campaign_id = Column(Integer, ForeignKey("sms_campaigns.id"), nullable=True, index=True)
+    source_type = Column(String(50), default="campaign") # campaign, announcement, vaccination, general
+    source_id = Column(Integer, nullable=True)
+    farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=True, index=True)
+    recipient_name = Column(String(150), nullable=False)
+    phone_number = Column(String(20), nullable=False)
+    message_text = Column(Text, nullable=False)
+    status = Column(String(30), default="queued") # queued, submitted, sent, delivered, failed, cancelled
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    idempotency_key = Column(String(100), unique=True, index=True, nullable=True)
+    provider_ref = Column(String(100), nullable=True)
+    is_mock = Column(Boolean, default=True)
+    scheduled_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    cooperative = relationship("Cooperative", back_populates="sms_jobs")
+    campaign = relationship("SMSCampaign")
+    farmer = relationship("Farmer", back_populates="sms_jobs")
+
+
+class PassbookDownloadAudit(Base):
+    __tablename__ = "passbook_download_audits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cooperative_id = Column(Integer, ForeignKey("cooperatives.id"), nullable=False, index=True)
+    farmer_id = Column(Integer, ForeignKey("farmers.id"), nullable=False, index=True)
+    requested_by_role = Column(String(20), nullable=False) # admin, farmer
+    requested_by_id = Column(Integer, nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    record_count = Column(Integer, default=0)
+    total_milk_value = Column(Float, default=0.0)
+    reference_number = Column(String(100), nullable=False)
+    generated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    cooperative = relationship("Cooperative", back_populates="passbook_audits")
+    farmer = relationship("Farmer", back_populates="passbook_audits")
+

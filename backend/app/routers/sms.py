@@ -1,10 +1,19 @@
+import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin
-from app.sms_service import SMSService
+from app.sms_service import (
+    SMSService,
+    mask_phone_number,
+    validate_phone_number,
+    get_sms_provider,
+    SimulatedSMSProvider,
+    generate_idempotency_key,
+    queue_vaccination_sms_job
+)
 
 router = APIRouter(prefix="/sms", tags=["SMS Notifications"])
 
@@ -19,6 +28,74 @@ def get_campaign_history(
     ).order_by(models.SMSCampaign.sent_at.desc()).all()
     return campaigns
 
+
+@router.get("/jobs", response_model=List[schemas.SMSJobResponse])
+def get_notification_jobs(
+    source_type: Optional[str] = None,
+    job_status: Optional[str] = None,
+    limit: int = 100,
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns individual notification delivery jobs for the authenticated cooperative.
+    Phone numbers are masked to protect personal privacy.
+    """
+    query = db.query(models.SMSNotificationJob).filter(
+        models.SMSNotificationJob.cooperative_id == admin.cooperative_id
+    )
+
+    if source_type:
+        query = query.filter(models.SMSNotificationJob.source_type == source_type)
+    if job_status:
+        query = query.filter(models.SMSNotificationJob.status == job_status)
+
+    jobs = query.order_by(models.SMSNotificationJob.created_at.desc()).limit(limit).all()
+
+    results = []
+    for j in jobs:
+        resp = schemas.SMSJobResponse.from_orm(j)
+        resp.phone_number = mask_phone_number(j.phone_number)
+        results.append(resp)
+
+    return results
+
+
+@router.get("/summary", response_model=schemas.SMSDeliverySummaryResponse)
+def get_delivery_summary(
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns aggregate delivery counts and gateway provider status."""
+    jobs = db.query(models.SMSNotificationJob).filter(
+        models.SMSNotificationJob.cooperative_id == admin.cooperative_id
+    ).all()
+
+    total = len(jobs)
+    queued = sum(1 for j in jobs if j.status == "queued")
+    submitted = sum(1 for j in jobs if j.status == "submitted")
+    sent = sum(1 for j in jobs if j.status == "sent")
+    delivered = sum(1 for j in jobs if j.status == "delivered")
+    failed = sum(1 for j in jobs if j.status == "failed")
+    cancelled = sum(1 for j in jobs if j.status == "cancelled")
+
+    provider = get_sms_provider()
+    is_mock = isinstance(provider, SimulatedSMSProvider)
+    provider_name = "Simulated Local Development Provider" if is_mock else "Indian Telecom DLT Gateway"
+
+    return schemas.SMSDeliverySummaryResponse(
+        total_jobs=total,
+        queued=queued,
+        submitted=submitted,
+        sent=sent,
+        delivered=delivered,
+        failed=failed,
+        cancelled=cancelled,
+        is_mock_gateway=is_mock,
+        gateway_provider=provider_name
+    )
+
+
 @router.post("/preview", response_model=schemas.SMSPreviewResponse)
 def preview_campaign(
     req: schemas.SMSPreviewRequest,
@@ -31,7 +108,8 @@ def preview_campaign(
     """
     query = db.query(models.Farmer).filter(
         models.Farmer.cooperative_id == admin.cooperative_id,
-        models.Farmer.is_active == True
+        models.Farmer.is_active == True,
+        models.Farmer.sms_enabled == True
     )
 
     if req.target_audience == "locality" and req.target_locality:
@@ -47,8 +125,8 @@ def preview_campaign(
         message=req.message,
         recipients=recipients
     )
-
     return preview_result
+
 
 @router.post("/send", response_model=schemas.SMSCampaignResponse, status_code=status.HTTP_201_CREATED)
 def send_campaign(
@@ -57,15 +135,16 @@ def send_campaign(
     db: Session = Depends(get_db)
 ):
     """
-    Dispatches or simulates SMS announcement to target farmer audience.
-    Saves campaign record and creates in-app notifications for farmers.
+    Dispatches SMS announcement to target farmer audience.
+    Saves campaign, tracks individual delivery jobs, and creates in-app notifications.
     """
     if not data.message.strip():
         raise HTTPException(status_code=400, detail="SMS message cannot be empty.")
 
     query = db.query(models.Farmer).filter(
         models.Farmer.cooperative_id == admin.cooperative_id,
-        models.Farmer.is_active == True
+        models.Farmer.is_active == True,
+        models.Farmer.sms_enabled == True
     )
 
     if data.target_audience == "locality" and data.target_locality:
@@ -100,9 +179,35 @@ def send_campaign(
         notes=dispatch_res.get("notes")
     )
     db.add(campaign)
+    db.flush()
 
-    # In addition to SMS, also broadcast as in-app notification so farmers see it immediately
+    provider = get_sms_provider()
+    is_mock = isinstance(provider, SimulatedSMSProvider)
+
+    # Record individual notification jobs
     for f in farmers:
+        if not validate_phone_number(f.phone):
+            continue
+
+        idempotency_key = generate_idempotency_key(admin.cooperative_id, "campaign", campaign.id, f.id, f.phone)
+        job = models.SMSNotificationJob(
+            cooperative_id=admin.cooperative_id,
+            campaign_id=campaign.id,
+            source_type="campaign",
+            source_id=campaign.id,
+            farmer_id=f.id,
+            recipient_name=f.full_name,
+            phone_number=f.phone,
+            message_text=data.message.strip(),
+            status="submitted",
+            is_mock=is_mock,
+            idempotency_key=idempotency_key,
+            provider_ref=f"SIM-{f.id}" if is_mock else f"DLT-{f.id}",
+            sent_at=datetime.datetime.utcnow()
+        )
+        db.add(job)
+
+        # In-app notification
         notif = models.Notification(
             cooperative_id=admin.cooperative_id,
             farmer_id=f.id,
@@ -116,5 +221,121 @@ def send_campaign(
 
     db.commit()
     db.refresh(campaign)
-
     return campaign
+
+
+@router.post("/jobs/{job_id}/retry", response_model=schemas.SMSJobResponse)
+def retry_sms_job(
+    job_id: int,
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Retries an individual failed notification job safely.
+    Does NOT resend to successful recipients.
+    """
+    job = db.query(models.SMSNotificationJob).filter(
+        models.SMSNotificationJob.id == job_id,
+        models.SMSNotificationJob.cooperative_id == admin.cooperative_id
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Notification job not found.")
+
+    if job.status in ["sent", "delivered", "submitted"]:
+        raise HTTPException(status_code=400, detail="Cannot retry a job that has already been dispatched.")
+
+    provider = get_sms_provider()
+    res = provider.send_single(job.phone_number, job.message_text)
+
+    job.retry_count += 1
+    job.status = res.get("status", "submitted")
+    job.provider_ref = res.get("provider_ref")
+    job.error_message = res.get("error_message")
+    job.sent_at = datetime.datetime.utcnow()
+    job.updated_at = datetime.datetime.utcnow()
+
+    db.commit()
+    db.refresh(job)
+
+    resp = schemas.SMSJobResponse.from_orm(job)
+    resp.phone_number = mask_phone_number(job.phone_number)
+    return resp
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=schemas.SMSJobResponse)
+def cancel_sms_job(
+    job_id: int,
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Cancels a queued notification job before dispatch."""
+    job = db.query(models.SMSNotificationJob).filter(
+        models.SMSNotificationJob.id == job_id,
+        models.SMSNotificationJob.cooperative_id == admin.cooperative_id
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Notification job not found.")
+
+    if job.status in ["sent", "delivered"]:
+        raise HTTPException(status_code=400, detail="Cannot cancel a job that is already sent.")
+
+    job.status = "cancelled"
+    job.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(job)
+
+    resp = schemas.SMSJobResponse.from_orm(job)
+    resp.phone_number = mask_phone_number(job.phone_number)
+    return resp
+
+
+@router.post("/reminders/{reminder_id}/send", response_model=schemas.SMSJobResponse)
+def dispatch_vaccination_sms(
+    reminder_id: int,
+    background_tasks: BackgroundTasks,
+    admin: models.AdminUser = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually triggers an SMS reminder to the farmer for a specific cattle vaccination.
+    """
+    reminder = db.query(models.CattleReminder).filter(
+        models.CattleReminder.id == reminder_id,
+        models.CattleReminder.cooperative_id == admin.cooperative_id
+    ).first()
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Vaccination reminder not found.")
+
+    farmer = reminder.farmer
+    if not farmer or not farmer.sms_enabled:
+        raise HTTPException(status_code=400, detail="Farmer has opted out of SMS notifications or has no profile.")
+
+    if not validate_phone_number(farmer.phone):
+        raise HTTPException(status_code=400, detail=f"Farmer phone number '{mask_phone_number(farmer.phone)}' is invalid.")
+
+    # Queue in background
+    queue_vaccination_sms_job(reminder.id, admin.cooperative_id)
+
+    # Return latest created job
+    job = db.query(models.SMSNotificationJob).filter(
+        models.SMSNotificationJob.cooperative_id == admin.cooperative_id,
+        models.SMSNotificationJob.source_type == "vaccination",
+        models.SMSNotificationJob.source_id == reminder.id
+    ).order_by(models.SMSNotificationJob.created_at.desc()).first()
+
+    if not job:
+        job = models.SMSNotificationJob(
+            cooperative_id=admin.cooperative_id,
+            source_type="vaccination",
+            source_id=reminder.id,
+            farmer_id=farmer.id,
+            recipient_name=farmer.full_name,
+            phone_number=farmer.phone,
+            message_text=f"Vaccination reminder: {reminder.title}",
+            status="submitted",
+            is_mock=True
+        )
+
+    resp = schemas.SMSJobResponse.from_orm(job)
+    resp.phone_number = mask_phone_number(job.phone_number)
+    return resp

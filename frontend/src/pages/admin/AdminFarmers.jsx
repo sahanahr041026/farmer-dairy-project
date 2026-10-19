@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
   UsersIcon, SearchIcon, PlusIcon, EditIcon,
-  CattleIcon, CheckCircleIcon, AlertTriangleIcon
+  CattleIcon, CheckCircleIcon, AlertTriangleIcon, DownloadIcon
 } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 
@@ -31,6 +31,36 @@ export function AdminFarmers() {
   });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+
+  // Passbook Download State
+  const [statementStart, setStatementStart] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [statementEnd, setStatementEnd] = useState(() => new Date().toISOString().split('T')[0]);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [passbookError, setPassbookError] = useState('');
+  const [passbookSuccess, setPassbookSuccess] = useState('');
+
+  const handleAdminDownloadPassbook = async () => {
+    if (!selectedFarmer) return;
+    setDownloadingPdf(true);
+    setPassbookError('');
+    setPassbookSuccess('');
+    try {
+      await api.downloadPassbookPdf({
+        farmer_id: selectedFarmer.id,
+        start_date: statementStart,
+        end_date: statementEnd
+      });
+      setPassbookSuccess("Official Member E-Passbook downloaded successfully.");
+      setTimeout(() => setPassbookSuccess(''), 4000);
+    } catch (err) {
+      setPassbookError(err.message || "Failed to generate member passbook statement.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const loadFarmers = async () => {
     setLoading(true);
@@ -373,6 +403,59 @@ export function AdminFarmers() {
           ) : (
             <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>No cattle registered yet for this farmer.</div>
           )}
+
+          {/* Official E-Passbook PDF Generation for Admin */}
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+            <h4 style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <DownloadIcon size={18} /> Official Member E-Passbook (PDF)
+            </h4>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              Generate an official, audited electronic milk statement for this member.
+            </p>
+
+            {passbookSuccess && (
+              <div style={{ padding: '0.5rem 0.75rem', backgroundColor: '#ECFDF5', color: '#065F46', borderRadius: 6, fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                {passbookSuccess}
+              </div>
+            )}
+            {passbookError && (
+              <div style={{ padding: '0.5rem 0.75rem', backgroundColor: '#FEF2F2', color: '#991B1B', borderRadius: 6, fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                {passbookError}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>From Date</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={statementStart}
+                  onChange={(e) => setStatementStart(e.target.value)}
+                  style={{ minHeight: 40, padding: '0.35rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'block', marginBottom: '0.2rem' }}>To Date</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={statementEnd}
+                  onChange={(e) => setStatementEnd(e.target.value)}
+                  style={{ minHeight: 40, padding: '0.35rem' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleAdminDownloadPassbook}
+                disabled={downloadingPdf}
+                className="btn btn-primary"
+                style={{ minHeight: 40, padding: '0.4rem 1rem', whiteSpace: 'nowrap' }}
+              >
+                {downloadingPdf ? "Generating PDF..." : "Download Passbook PDF"}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

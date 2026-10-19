@@ -36,9 +36,10 @@ export function FarmerCattle() {
   const handleSpeakReminder = (rem) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
+    const statusText = t(rem.status, language);
     const text = language === 'kn'
-      ? `${rem.title_kn || rem.title}. ದಿನಾಂಕ: ${rem.due_date}. ಸ್ಥಿತಿ: ${rem.status}.`
-      : `${rem.title}. Due date: ${rem.due_date}. Status: ${rem.status}.`;
+      ? `${rem.title_kn || rem.title}. ದಿನಾಂಕ: ${rem.due_date}. ಸ್ಥಿತಿ: ${statusText}. ${rem.guidance ? `ಮಾರ್ಗದರ್ಶನ: ${rem.guidance}.` : ''} ${rem.veterinarian_notes ? `ಪಶುವೈದ್ಯರ ಟಿಪ್ಪಣಿ: ${rem.veterinarian_notes}.` : ''}`
+      : `${rem.title}. Due date: ${rem.due_date}. Status: ${statusText}. ${rem.guidance ? `Guidance: ${rem.guidance}.` : ''} ${rem.veterinarian_notes ? `Veterinary advisory: ${rem.veterinarian_notes}.` : ''}`;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
     window.speechSynthesis.speak(utterance);
@@ -159,40 +160,95 @@ export function FarmerCattle() {
         {t("reminders_title", language)}
       </h2>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {reminders.map((rem) => {
           const isOverdue = rem.status === 'overdue';
+          const isDueSoon = rem.status === 'due_soon';
           const isCompleted = rem.status === 'completed';
+          const isCancelled = rem.status === 'cancelled';
+
+          let borderAccent = 'var(--status-pending)';
+          let badgeBg = '#eff6ff';
+          let badgeColor = '#1d4ed8';
+
+          if (isOverdue) {
+            borderAccent = '#dc2626';
+            badgeBg = '#fee2e2';
+            badgeColor = '#b91c1c';
+          } else if (isDueSoon) {
+            borderAccent = '#d97706';
+            badgeBg = '#fef3c7';
+            badgeColor = '#b45309';
+          } else if (isCompleted) {
+            borderAccent = '#10b981';
+            badgeBg = '#d1fae5';
+            badgeColor = '#065f46';
+          } else if (isCancelled) {
+            borderAccent = '#6b7280';
+            badgeBg = '#f3f4f6';
+            badgeColor = '#374151';
+          }
 
           return (
             <div
               key={rem.id}
               className="card"
               style={{
-                padding: '1rem',
-                borderLeft: `5px solid ${isOverdue ? 'var(--status-overdue)' : (isCompleted ? 'var(--status-settled)' : 'var(--status-pending)')}`,
+                padding: '1.1rem',
+                borderLeft: `5px solid ${borderAccent}`,
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'flex-start',
+                gap: '0.75rem'
               }}
             >
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                  <span className={`badge badge-${rem.status}`}>
-                    {rem.status === 'overdue' ? t("overdue", language) : (rem.status === 'completed' ? t("completed", language) : t("upcoming", language))}
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: 6,
+                    backgroundColor: badgeBg,
+                    color: badgeColor
+                  }}>
+                    {t(rem.status, language)}
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize', fontWeight: 600 }}>
                     {rem.care_type}
                   </span>
                 </div>
-                <h4 style={{ fontSize: '0.98rem', fontWeight: 700, margin: '0.2rem 0' }}>
+
+                <h4 style={{ fontSize: '1.02rem', fontWeight: 700, margin: '0.2rem 0', color: 'var(--text-main)' }}>
                   {language === 'kn' ? (rem.title_kn || rem.title) : rem.title}
                 </h4>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  {rem.cattle_name ? `Animal: ${rem.cattle_name} (${rem.cattle_tag}) | ` : ''} Due: <strong>{rem.due_date}</strong>
+
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  {rem.cattle_name ? `Animal: ${rem.cattle_name} (${rem.cattle_tag}) • ` : ''} 
+                  Due Date: <strong style={{ color: isOverdue ? '#dc2626' : (isDueSoon ? '#d97706' : 'var(--text-main)') }}>{rem.due_date}</strong>
                 </div>
+
+                {isCompleted && (
+                  <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: '#065f46', backgroundColor: '#f0fdf4', padding: '0.35rem 0.6rem', borderRadius: 4, display: 'inline-block' }}>
+                    ✓ {language === 'kn' ? 'ಲಸಿಕೆ ನೀಡಿದವರು: ' : 'Administered by: '}
+                    <strong>{rem.administered_by || 'Veterinary Officer'}</strong>
+                    {rem.next_due_date && (
+                      <span style={{ marginLeft: '0.5rem' }}>
+                        • {language === 'kn' ? 'ಮುಂದಿನ ಡೋಸ್: ' : 'Next due: '} <strong>{rem.next_due_date}</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {rem.guidance && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', backgroundColor: '#fffbeb', border: '1px solid #fef3c7', padding: '0.4rem 0.6rem', borderRadius: 4, color: '#92400e' }}>
+                    <strong>{language === 'kn' ? 'ಆರೈಕೆ ಮಾರ್ಗದರ್ಶನ: ' : 'Care Guidance: '}</strong>
+                    {rem.guidance}
+                  </div>
+                )}
+
                 {rem.veterinarian_notes && (
-                  <div style={{ fontSize: '0.78rem', color: 'var(--primary)', marginTop: '0.2rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--primary)', marginTop: '0.35rem' }}>
                     Dr. Advisory: {rem.veterinarian_notes}
                   </div>
                 )}
@@ -209,10 +265,13 @@ export function FarmerCattle() {
                   color: 'var(--primary)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  border: 'none',
+                  cursor: 'pointer',
+                  flexShrink: 0
                 }}
-                title="Listen to reminder"
-                aria-label="Listen to reminder spoken aloud"
+                title={language === 'kn' ? 'ಧ್ವನಿಯಲ್ಲಿ ಕೇಳಿ' : 'Listen aloud'}
+                aria-label="Listen aloud"
               >
                 <SpeakerIcon size={18} />
               </button>

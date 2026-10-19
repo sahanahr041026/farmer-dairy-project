@@ -314,8 +314,56 @@ def seed_database():
         db.rollback()
         print(f"Error seeding database: {e}")
         raise
+def seed_phase4_data_if_needed():
+    db = SessionLocal()
+    try:
+        coop = db.query(models.Cooperative).filter_by(code="KMF-MLN-108").first()
+        if not coop:
+            return
+        admin = db.query(models.AdminUser).filter_by(cooperative_id=coop.id).first()
+
+        # Seed Announcements if none exist
+        if db.query(models.Announcement).filter_by(cooperative_id=coop.id).count() == 0:
+            print("Seeding Phase 4 Announcements & Schemes...")
+            a1 = models.Announcement(
+                cooperative_id=coop.id,
+                admin_id=admin.id if admin else None,
+                title="Karnataka Pashu Bhagya Dairy Subsidy Scheme 2026",
+                title_kn="ಕರ್ನಾಟಕ ಪಶು ಭಾಗ್ಯ ಡೈರಿ ಸಬ್ಸಿಡಿ ಯೋಜನೆ ೨೦೨೬",
+                content="Government of Karnataka offers 50% subsidy (up to ₹1,20,000) for small dairy farmers purchasing two crossbred cows or graded Murrah buffaloes. Application forms available at cooperative counter. Last date for submission: 30 November 2026.",
+                content_kn="ಸಣ್ಣ ಮತ್ತು ಮಧ್ಯಮ ಡೈರಿ ರೈತರಿಗೆ ಎರಡು ಮಿಶ್ರತಳಿ ಹಸು ಅಥವಾ ಮುರ್ರಾ ಎಮ್ಮೆ ಖರೀದಿಸಲು ಶೇ. ೫೦ (ಗರಿಷ್ಠ ₹೧,೨೦,೦೦೦) ಸಹಾಯಧನ ದೊರೆಯಲಿದೆ. ಅರ್ಜಿಗಳನ್ನು ಸಂಘದ ಕಚೇರಿಯಲ್ಲಿ ಪಡೆಯಿರಿ.",
+                category="scheme",
+                target_audience="all",
+                is_published=True,
+                publish_date=datetime.date.today() - datetime.timedelta(days=5),
+                expiry_date=datetime.date.today() + datetime.timedelta(days=40),
+                sms_notify=True,
+                official_link="https://ahvs.karnataka.gov.in",
+                contact_info="08182-249012 (Society Office)"
+            )
+            a2 = models.Announcement(
+                cooperative_id=coop.id,
+                admin_id=admin.id if admin else None,
+                title="Monsoon Clean Milk Procurement & Quality Incentive",
+                title_kn="ಮಳೆಗಾಲದ ಶುದ್ಧ ಹಾಲು ಉತ್ಪಾದನೆ ಮತ್ತು ಗುಣಮಟ್ಟ ಪ್ರೋತ್ಸಾಹ",
+                content="Farmers maintaining an average Butterfat >= 4.2% and SNF >= 8.5% with chilled delivery will receive a quality incentive bonus of ₹1.50 per litre in the upcoming payment settlement run.",
+                content_kn="ಬೆಣ್ಣೆಯಂಶ ೪.೨% ಹಾಗೂ ಎಸ್‌ಎನ್‌ಎಫ್ ೮.೫% ಗಿಂತ ಹೆಚ್ಚಿರುವ ಹಾಲಿಗೆ ಪ್ರತಿ ಲೀಟರ್‌ಗೆ ₹೧.೫೦ ಹೆಚ್ಚುವರಿ ಬೋನಸ್ ನೀಡಲಾಗುವುದು.",
+                category="milk_procurement",
+                target_audience="all",
+                is_published=True,
+                publish_date=datetime.date.today() - datetime.timedelta(days=2),
+                expiry_date=datetime.date.today() + datetime.timedelta(days=30),
+                sms_notify=False,
+                contact_info="08182-249012"
+            )
+            db.add(a1)
+            db.add(a2)
+            db.commit()
+            print("Phase 4 announcements seeded successfully.")
     finally:
         db.close()
 
 if __name__ == "__main__":
     seed_database()
+    seed_phase4_data_if_needed()
+

@@ -36,6 +36,15 @@ def sync_sqlite_columns():
         "milk_record_audits": [
             ("previous_rate", "FLOAT", "NULL"),
             ("new_rate", "FLOAT", "NULL"),
+        ],
+        "farmers": [
+            ("sms_enabled", "BOOLEAN", "1"),
+        ],
+        "cattle_reminders": [
+            ("administered_by", "VARCHAR(150)", "NULL"),
+            ("next_due_date", "DATE", "NULL"),
+            ("guidance", "TEXT", "NULL"),
+            ("updated_at", "DATETIME", "NULL"),
         ]
     }
 

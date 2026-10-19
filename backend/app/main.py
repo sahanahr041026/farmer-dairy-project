@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base
 from app.routers import (
-    auth, farmers, rates, milk, payments, cattle, passbook, assistant, notifications, reports, sms
+    auth, farmers, rates, milk, payments, cattle, passbook, assistant, notifications, reports, sms, announcements
 )
 
 # Create database tables
@@ -32,6 +32,7 @@ app.include_router(milk.router, prefix=settings.API_V1_PREFIX)
 app.include_router(payments.router, prefix=settings.API_V1_PREFIX)
 app.include_router(cattle.router, prefix=settings.API_V1_PREFIX)
 app.include_router(passbook.router, prefix=settings.API_V1_PREFIX)
+app.include_router(announcements.router, prefix=settings.API_V1_PREFIX)
 app.include_router(assistant.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports.router, prefix=settings.API_V1_PREFIX)

@@ -10,12 +10,14 @@ import {
 export function FarmerPassbook() {
   const { user, language } = useAuth();
   const [passbook, setPassbook] = useState(null);
-  const [filterType, setFilterType] = useState('month'); // today, week, month, custom
+  const [filterType, setFilterType] = useState('this_month'); // this_month, prev_month, week, custom
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState('idle'); // idle, downloading, success, error
+  const [downloadErrorMsg, setDownloadErrorMsg] = useState('');
   const [error, setError] = useState('');
   const [lastSynced, setLastSynced] = useState(() => new Date());
 
@@ -24,15 +26,18 @@ export function FarmerPassbook() {
     let start = '';
     let end = today.toISOString().split('T')[0];
 
-    if (filter === 'today') {
-      start = end;
+    if (filter === 'this_month') {
+      const pastMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      start = pastMonth.toISOString().split('T')[0];
+    } else if (filter === 'prev_month') {
+      const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+      start = prevMonthStart.toISOString().split('T')[0];
+      end = prevMonthEnd.toISOString().split('T')[0];
     } else if (filter === 'week') {
       const pastWeek = new Date();
       pastWeek.setDate(today.getDate() - 7);
       start = pastWeek.toISOString().split('T')[0];
-    } else if (filter === 'month') {
-      const pastMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      start = pastMonth.toISOString().split('T')[0];
     } else if (filter === 'custom') {
       start = customStart || end;
       end = customEnd || end;
@@ -91,11 +96,16 @@ export function FarmerPassbook() {
 
   const handleDownloadPdf = async () => {
     setDownloading(true);
+    setDownloadStatus('downloading');
+    setDownloadErrorMsg('');
     try {
       const { start, end } = getFilterDates(filterType);
       await api.downloadPassbookPdf({ start_date: start, end_date: end });
+      setDownloadStatus('success');
+      setTimeout(() => setDownloadStatus('idle'), 6000);
     } catch (err) {
-      alert("Error generating PDF passbook: " + (err.message || "Server error"));
+      setDownloadStatus('error');
+      setDownloadErrorMsg(err.message || "Failed to generate passbook PDF. Please check connection and retry.");
     } finally {
       setDownloading(false);
     }
@@ -150,7 +160,63 @@ export function FarmerPassbook() {
           <span>{t("sync_live", language)} • Last checked {lastSynced.toLocaleTimeString()}</span>
         </div>
 
-        {/* Prominent PDF Download Button */}
+        {/* PDF Download Feedback / Status Notifications */}
+        {downloadStatus === 'success' && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#ECFDF5',
+            color: '#065F46',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid #A7F3D0',
+            fontSize: '0.85rem',
+            fontWeight: 600
+          }}>
+            <CheckCircleIcon size={18} color="#059669" />
+            <span>{t("download_success", language)}</span>
+          </div>
+        )}
+
+        {downloadStatus === 'error' && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#FEF2F2',
+            color: '#991B1B',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid #FECACA',
+            fontSize: '0.85rem'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertTriangleIcon size={18} color="#DC2626" />
+              <span>{downloadErrorMsg || t("download_error", language)}</span>
+            </div>
+            <button
+              onClick={handleDownloadPdf}
+              className="touch-target"
+              style={{
+                padding: '0.35rem 0.75rem',
+                backgroundColor: '#DC2626',
+                color: '#FFFFFF',
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Prominent PDF Download Button (Accessible >= 48px touch target) */}
         <button
           onClick={handleDownloadPdf}
           disabled={downloading || !passbook?.records?.length}
@@ -159,13 +225,19 @@ export function FarmerPassbook() {
             width: '100%',
             backgroundColor: 'var(--primary)',
             boxShadow: 'var(--shadow-md)',
-            fontSize: '1rem',
-            padding: '0.85rem',
+            fontSize: '1.05rem',
+            fontWeight: 700,
+            padding: '0.9rem',
+            minHeight: 52,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.6rem',
             opacity: (!passbook?.records?.length) ? 0.6 : 1
           }}
         >
-          <DownloadIcon size={20} />
-          <span>{downloading ? "Generating Official PDF..." : t("download_pdf", language)}</span>
+          <DownloadIcon size={22} />
+          <span>{downloading ? t("generating_pdf", language) : t("download_my_epassbook", language)}</span>
         </button>
       </div>
 
@@ -178,10 +250,10 @@ export function FarmerPassbook() {
         marginBottom: '1rem'
       }}>
         {[
-          { key: 'today', label: t("filter_today", language) },
+          { key: 'this_month', label: t("preset_this_month", language) },
+          { key: 'prev_month', label: t("preset_prev_month", language) },
           { key: 'week', label: t("filter_7days", language) },
-          { key: 'month', label: t("filter_month", language) },
-          { key: 'custom', label: t("filter_custom", language) }
+          { key: 'custom', label: t("preset_custom", language) }
         ].map((tab) => (
           <button
             key={tab.key}
