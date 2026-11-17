@@ -147,7 +147,7 @@ export function AdminMilkCollection() {
         fat_percentage: activeRateRule?.calculation_method === 'flat_rate' ? (parseFloat(fat) || null) : parseFloat(fat),
         snf_percentage: activeRateRule?.calculation_method === 'flat_rate' ? (parseFloat(snf) || null) : parseFloat(snf),
         notes: notes || undefined
-      }, forceOverwrite);
+      }, forceOverwrite, forceOverwrite);
 
       setFormSuccess({
         farmerName: res.farmer_name || selectedFarmer?.full_name,
@@ -647,61 +647,57 @@ export function AdminMilkCollection() {
               </tr>
             </thead>
             <tbody>
-              {filteredCollections.length === 0 ? (
+              {collections.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    No milk collection records found matching criteria.
+                    No milk collections recorded yet. Use the form above to record collection.
                   </td>
                 </tr>
               ) : (
-                filteredCollections.map((c) => {
-                  const hasAudit = c.audits && c.audits.length > 0;
-                  const isCorrected = c.record_status === 'corrected' || hasAudit;
-                  return (
-                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '0.65rem' }}>
-                        <strong>{c.collection_date}</strong>{' '}
-                        <span style={{ textTransform: 'capitalize', color: 'var(--text-muted)' }}>({c.session})</span>
-                      </td>
-                      <td style={{ padding: '0.65rem' }}>
-                        <strong>{c.farmer_name}</strong>{' '}
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>({c.farmer_uid})</span>
-                      </td>
-                      <td style={{ padding: '0.65rem', fontWeight: 700, color: 'var(--primary)' }}>
-                        {c.quantity_litres} L
-                      </td>
-                      <td style={{ padding: '0.65rem' }}>
-                        {c.fat_percentage ? `${c.fat_percentage}%` : '-'} / {c.snf_percentage ? `${c.snf_percentage}%` : '-'}
-                      </td>
-                      <td style={{ padding: '0.65rem' }}>₹{c.rate_per_litre.toFixed(2)}</td>
-                      <td style={{ padding: '0.65rem', fontWeight: 700 }}>₹{c.total_amount.toFixed(2)}</td>
-                      <td style={{ padding: '0.65rem' }}>
-                        <span className={`badge ${isCorrected ? 'badge-pending' : 'badge-settled'}`}>
-                          {isCorrected ? 'Corrected' : 'Recorded'}
+                collections.map((c) => {
+                const hasAudit = c.audits && c.audits.length > 0;
+                return (
+                  <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '0.65rem' }}>
+                      <strong>{c.collection_date}</strong> ({c.session})
+                    </td>
+                    <td style={{ padding: '0.65rem' }}>
+                      {c.farmer_name} <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>({c.farmer_uid})</span>
+                    </td>
+                    <td style={{ padding: '0.65rem', fontWeight: 700, color: 'var(--primary)' }}>
+                      {c.quantity_litres} L
+                    </td>
+                    <td style={{ padding: '0.65rem' }}>
+                      {c.fat_percentage ? `${c.fat_percentage}%` : '-'} / {c.snf_percentage ? `${c.snf_percentage}%` : '-'}
+                    </td>
+                    <td style={{ padding: '0.65rem' }}>₹{c.rate_per_litre.toFixed(2)}</td>
+                    <td style={{ padding: '0.65rem', fontWeight: 700 }}>₹{c.total_amount.toFixed(2)}</td>
+                    <td style={{ padding: '0.65rem' }}>
+                      <span className={`badge badge-${c.payment_status}`}>
+                        {c.payment_status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.65rem' }}>
+                      {hasAudit ? (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--status-pending)', fontWeight: 600 }}>
+                          Adjusted: {c.audits[c.audits.length - 1].reason}
                         </span>
-                      </td>
-                      <td style={{ padding: '0.65rem' }}>
-                        {hasAudit ? (
-                          <span style={{ fontSize: '0.78rem', color: 'var(--status-pending)', fontWeight: 600 }}>
-                            {c.audits[c.audits.length - 1].reason}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Original Entry</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.65rem' }}>
-                        <button
-                          onClick={() => handleOpenCorrection(c)}
-                          className="btn btn-outline touch-target"
-                          style={{ minHeight: 32, padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
-                        >
-                          Correct
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>Original</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '0.65rem' }}>
+                      <button
+                        onClick={() => handleOpenCorrection(c)}
+                        className="btn btn-outline touch-target"
+                        style={{ minHeight: 32, padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+                      >
+                        Correct
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }))}
             </tbody>
           </table>
         </div>

@@ -95,6 +95,16 @@ export const translations = {
 
     // Cattle
     cattle_title: "My Cattle & Herd",
+    tab_my_cows: "My Herd",
+    tab_reminders: "Health Reminders",
+    tab_breed_guide: "Breed Advisory Guide",
+    add_cattle: "Add New Cattle",
+    edit_cattle: "Edit Cattle Details",
+    age: "Age",
+    years: "years",
+    gender: "Gender",
+    female: "Female",
+    male: "Male",
     tag_number: "Tag Number",
     cow_name: "Name",
     breed: "Breed",
@@ -224,6 +234,16 @@ export const translations = {
 
     // Cattle
     cattle_title: "ನನ್ನ ಜಾನುವಾರುಗಳು",
+    tab_my_cows: "ನನ್ನ ಹಸುಗಳು",
+    tab_reminders: "ಆರೈಕೆ ಜ್ಞಾಪನೆಗಳು",
+    tab_breed_guide: "ತಳಿ ಮಾರ್ಗದರ್ಶಿ",
+    add_cattle: "ಹೊಸ ಹಸು ನೋಂದಣಿ",
+    edit_cattle: "ವಿವರ ತಿದ್ದುಪಡಿ",
+    age: "ವಯಸ್ಸು",
+    years: "ವರ್ಷ",
+    gender: "ಲಿಂಗ",
+    female: "ಹೆಣ್ಣು",
+    male: "ಗಂಡು",
     tag_number: "ಟ್ಯಾಗ್ ಸಂಖ್ಯೆ",
     cow_name: "ಹೆಸರು",
     breed: "ತಳಿ",

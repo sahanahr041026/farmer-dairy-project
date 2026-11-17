@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { CattleIcon, CalendarIcon, PlusIcon, CheckCircleIcon, AlertTriangleIcon, SMSIcon } from '../../components/Icons';
+import { CattleIcon, CalendarIcon, PlusIcon, CheckCircleIcon, AlertTriangleIcon, EditIcon, SMSIcon } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 
 export function AdminCattleCare() {
   const [farmers, setFarmers] = useState([]);
   const [cattleList, setCattleList] = useState([]);
   const [reminders, setReminders] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -40,6 +41,17 @@ export function AdminCattleCare() {
   const [cStatus, setCStatus] = useState('Milking');
   const [cNotes, setCNotes] = useState('');
 
+  // Edit Cattle Modal
+  const [editingCattle, setEditingCattle] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editBreed, setEditBreed] = useState('Gir');
+  const [editAge, setEditAge] = useState('');
+  const [editYield, setEditYield] = useState('');
+  const [editStatus, setEditStatus] = useState('Milking');
+  const [editNotes, setEditNotes] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editError, setEditError] = useState('');
+
   // Complete Administration Modal
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
   const [completingRem, setCompletingRem] = useState(null);
@@ -53,14 +65,16 @@ export function AdminCattleCare() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [fList, cList, rList] = await Promise.all([
+      const [fList, cList, rList, tList] = await Promise.all([
         api.getFarmers().catch(() => []),
         api.getCattle().catch(() => []),
-        api.getReminders().catch(() => [])
+        api.getReminders(),
+        api.getReminderTemplates().catch(() => []).catch(() => [])
       ]);
       setFarmers(fList);
       setCattleList(cList);
       setReminders(rList);
+      setTemplates(tList);
       if (fList.length > 0) {
         if (!targetFarmerId) setTargetFarmerId(fList[0].id.toString());
         if (!cattleFarmerId) setCattleFarmerId(fList[0].id.toString());
@@ -75,6 +89,13 @@ export function AdminCattleCare() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleApplyTemplate = (tpl) => {
+    setRemTitle(tpl.title);
+    setRemTitleKn(tpl.title_kn || '');
+    setCareType(tpl.care_type);
+    setVetNotes(tpl.default_notes || '');
+  };
 
   const handleCreateReminder = async (e) => {
     e.preventDefault();
@@ -127,15 +148,7 @@ export function AdminCattleCare() {
     }
   };
 
-  const openCompletionModal = (rem) => {
-    setCompletingRem(rem);
-    setCompletionNotes(rem.veterinarian_notes || '');
-    setIsCompletionModalOpen(true);
-  };
-
-  const handleConfirmCompletion = async (e) => {
-    e.preventDefault();
-    if (!completingRem) return;
+  const handleCompleteReminder = async (remId) => {
     try {
       await api.updateReminder(completingRem.id, {
         status: 'completed',
@@ -184,7 +197,7 @@ export function AdminCattleCare() {
 
   return (
     <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
             Cattle Health, Vaccination & Reminders
@@ -224,12 +237,11 @@ export function AdminCattleCare() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        {/* Reminders List Card */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
-              Care Schedules ({filteredReminders.length})
-            </h3>
+        {/* Reminders List */}
+        <div className="card">
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}>
+            Active Health Schedules & Camps ({reminders.filter(r => r.status !== 'completed').length})
+          </h3>
 
             <select
               className="form-input"
@@ -247,11 +259,10 @@ export function AdminCattleCare() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: 520, overflowY: 'auto' }}>
-            {filteredReminders.map((r) => {
-              const isOverdue = r.status === 'overdue';
+            {filteredReminders.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No reminders scheduled.</p>
               const isDueSoon = r.status === 'due_soon';
-              const isCompleted = r.status === 'completed';
-              const isCancelled = r.status === 'cancelled';
+            ) : (              const isCancelled = r.status === 'cancelled';
 
               let borderAccent = 'var(--status-pending)';
               let badgeBg = '#eff6ff';
@@ -275,45 +286,31 @@ export function AdminCattleCare() {
                 badgeColor = '#374151';
               }
 
-              return (
+              reminders.map((r) => (
                 <div
                   key={r.id}
                   style={{
-                    padding: '0.9rem',
-                    backgroundColor: 'var(--bg-page)',
-                    borderRadius: 8,
-                    borderLeft: `5px solid ${borderAccent}`,
+                    padding: '0.75rem',
+                    borderRadius: 6,
+                    backgroundColor: 'var(--bg-main)',
+                    borderLeft: `4px solid ${r.status === 'overdue' ? 'var(--status-overdue)' : (r.status === 'completed' ? 'var(--status-settled)' : 'var(--status-pending)')}`,
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem'
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
-                        <span style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: 4,
-                          backgroundColor: badgeBg,
-                          color: badgeColor,
-                          textTransform: 'uppercase'
-                        }}>
-                          {r.status.replace('_', ' ')}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                          {r.care_type}
-                        </span>
-                      </div>
-                      <h4 style={{ fontWeight: 700, fontSize: '0.98rem', margin: '0.2rem 0' }}>{r.title}</h4>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                        Farmer: <strong>{r.farmer_name || `Farmer #${r.farmer_id}`}</strong>
-                        {r.cattle_name ? ` • Animal: ${r.cattle_name} (${r.cattle_tag})` : ' • Herd-wide'}
-                      </div>
-                      <div style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
-                        Due: <strong style={{ color: isOverdue ? '#dc2626' : (isDueSoon ? '#d97706' : 'var(--text-main)') }}>{r.due_date}</strong>
-                      </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span className={`badge badge-${r.status}`}>{r.status}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                        {r.care_type}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                      {r.title}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Farmer: {farmers.find(f => f.id === r.farmer_id)?.full_name || 'Farmer'} | Due: <strong>{r.due_date}</strong>
                     </div>
                   </div>
 
@@ -369,8 +366,8 @@ export function AdminCattleCare() {
                     )}
                   </div>
                 </div>
-              );
-            })}
+              ))
+            )}
 
             {filteredReminders.length === 0 && (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -380,7 +377,7 @@ export function AdminCattleCare() {
           </div>
         </div>
 
-        {/* Registered Herd Table */}
+        {/* Cattle List */}
         <div className="card">
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}>
             Registered Cattle Herd ({cattleList.length})
@@ -395,6 +392,7 @@ export function AdminCattleCare() {
                   <th style={{ padding: '0.5rem' }}>Farmer</th>
                   <th style={{ padding: '0.5rem' }}>Breed</th>
                   <th style={{ padding: '0.5rem' }}>Status</th>
+                  <th style={{ padding: '0.5rem' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -406,6 +404,17 @@ export function AdminCattleCare() {
                     <td style={{ padding: '0.5rem' }}>{c.breed}</td>
                     <td style={{ padding: '0.5rem' }}>
                       <span className="badge badge-settled">{c.milking_status}</span>
+                    </td>
+                    <td style={{ padding: '0.5rem' }}>
+                      <button
+                        onClick={() => handleOpenEditCattle(c)}
+                        className="btn btn-outline touch-target"
+                        style={{ minHeight: 28, padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        title="Edit profile"
+                      >
+                        <EditIcon size={12} />
+                        <span>Edit</span>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -495,6 +504,37 @@ export function AdminCattleCare() {
         {formSuccess && (
           <div style={{ padding: '0.75rem', backgroundColor: 'var(--status-settled-bg)', color: 'var(--status-settled)', borderRadius: 6, marginBottom: '1rem', fontWeight: 600 }}>
             {formSuccess}
+          </div>
+        )}
+
+        {/* Quick Campaign Template Bar */}
+        {templates.length > 0 && (
+          <div style={{ marginBottom: '1rem', padding: '0.6rem', backgroundColor: 'var(--bg-main)', borderRadius: 6 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+              Quick Health Templates:
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {templates.map(tpl => (
+                <button
+                  type="button"
+                  key={tpl.template_id}
+                  onClick={() => handleApplyTemplate(tpl)}
+                  className="touch-target"
+                  style={{
+                    fontSize: '0.72rem',
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: 4,
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--primary)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  ⚡ {tpl.title.split('(')[0].trim()}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -647,6 +687,7 @@ export function AdminCattleCare() {
                 <option value="Jersey">Jersey</option>
                 <option value="Murrah Buffalo">Murrah Buffalo</option>
                 <option value="Sahiwal">Sahiwal</option>
+                <option value="Hallikar">Hallikar</option>
                 <option value="Crossbred">Crossbred</option>
               </select>
             </div>
@@ -670,11 +711,103 @@ export function AdminCattleCare() {
             </select>
           </div>
 
+          <div className="form-group">
+            <label className="form-label">Health & Vaccination Notes</label>
+            <textarea
+              className="form-input"
+              rows="2"
+              placeholder="Health notes, tags, remarks..."
+              value={cNotes}
+              onChange={(e) => setCNotes(e.target.value)}
+            />
+          </div>
+
           <button type="submit" className="btn btn-primary" style={{ width: '100%', minHeight: 48 }}>
             Register Animal in Database
           </button>
         </form>
       </Modal>
+
+      {/* Edit Cattle Modal */}
+      {editingCattle && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditingCattle(null)}
+          title={`Edit Cattle Profile: ${editingCattle.name} (${editingCattle.tag_number})`}
+        >
+          {editSuccess ? (
+            <div style={{ padding: '1rem', backgroundColor: 'var(--status-settled-bg)', color: 'var(--status-settled)', borderRadius: 6, fontWeight: 700 }}>
+              {editSuccess}
+            </div>
+          ) : (
+            <form onSubmit={handleSaveEditCattle}>
+              {editError && (
+                <div style={{ padding: '0.6rem', backgroundColor: 'var(--status-overdue-bg)', color: 'var(--status-overdue)', borderRadius: 6, marginBottom: '0.75rem', fontSize: '0.85rem' }}>
+                  {editError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Cattle Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Breed *</label>
+                  <select className="form-input" value={editBreed} onChange={(e) => setEditBreed(e.target.value)}>
+                    <option value="Gir">Gir</option>
+                    <option value="Holstein Friesian">Holstein Friesian</option>
+                    <option value="Jersey">Jersey</option>
+                    <option value="Murrah Buffalo">Murrah Buffalo</option>
+                    <option value="Sahiwal">Sahiwal</option>
+                    <option value="Hallikar">Hallikar</option>
+                    <option value="Crossbred">Crossbred</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Age (Years)</label>
+                  <input type="number" step="0.1" className="form-input" value={editAge} onChange={(e) => setEditAge(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Est Yield (L)</label>
+                  <input type="number" step="0.5" className="form-input" value={editYield} onChange={(e) => setEditYield(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-input" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+                  <option value="Milking">Milking</option>
+                  <option value="Dry">Dry</option>
+                  <option value="Pregnant">Pregnant</option>
+                  <option value="Heifer">Heifer</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Health Notes</label>
+                <textarea
+                  className="form-input"
+                  rows="2"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', minHeight: 46 }}>
+                Save Cattle Changes
+              </button>
+            </form>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { t } from '../../i18n';
-import { BellIcon, CheckCircleIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon } from '../../components/Icons';
+import { BellIcon, CheckCircleIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon, SpeakerIcon } from '../../components/Icons';
 
 export function FarmerNotifications() {
   const { language } = useAuth();
@@ -31,20 +31,44 @@ export function FarmerNotifications() {
     fetchData();
   }, []);
 
-  const handleMarkAllRead = async () => {
-    try {
-      await api.markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  
+const handleMarkAllRead = async () => {
+  try {
+    await api.markAllNotificationsRead();
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, is_read: true }))
+    );
+  } catch (e) {
+    console.error(e);
+  }
+};
+
 
   const handleSpeakText = (title, body) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const text = `${title}. ${body || ''}`;
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSpeakNotification = (n) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const title = language === 'kn' ? (n.title_kn || n.title) : n.title;
+    const body = language === 'kn' ? (n.message_kn || n.message) : n.message;
+    const utterance = new SpeechSynthesisUtterance(`${title}. ${body}`);
+    utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSpeakNotification = (n) => {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const title = language === 'kn' ? (n.title_kn || n.title) : n.title;
+    const body = language === 'kn' ? (n.message_kn || n.message) : n.message;
+    const utterance = new SpeechSynthesisUtterance(`${title}. ${body}`);
     utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
     window.speechSynthesis.speak(utterance);
   };
@@ -329,13 +353,14 @@ export function FarmerNotifications() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-main)', margin: 0 }}>
                       {language === 'kn' ? (n.title_kn || n.title) : n.title}
                     </h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {new Date(n.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          {new Date(n.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
                       <button
                         onClick={() => handleSpeakText(
                           language === 'kn' ? (n.title_kn || n.title) : n.title,
@@ -354,7 +379,28 @@ export function FarmerNotifications() {
                         <SpeakerIcon size={14} />
                       </button>
                     </div>
+                      <button
+                      onClick={() => handleSpeakNotification(n)}
+                      className="touch-target"
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--bg-main)',
+                        color: 'var(--primary)',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                      title="Listen to notification"
+                      aria-label="Listen to notification"
+                    >
+                      <SpeakerIcon size={16} />
+                    </button>
                   </div>
+                </div>
                   <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: 1.45 }}>
                     {language === 'kn' ? (n.message_kn || n.message) : n.message}
                   </p>

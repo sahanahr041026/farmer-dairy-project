@@ -314,54 +314,55 @@ export function FarmerPassbook() {
 
       {/* Financial & Volume Summary Cards */}
       {passbook && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            {/* Filtered Period Volume */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '0.5rem' }}>
+            {/* Total Milk */}
             <div className="card" style={{ padding: '0.85rem' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                {t("total_milk", language)} ({filterType.toUpperCase()})
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t("total_milk", language)}</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)' }}>
                 {passbook.total_litres} <span style={{ fontSize: '0.8rem' }}>L</span>
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                 Avg Fat: {passbook.avg_fat}% | SNF: {passbook.avg_snf}%
               </div>
             </div>
 
-            {/* Filtered Period Calculated Milk Value */}
+            {/* Calculated Earnings */}
             <div className="card" style={{ padding: '0.85rem', backgroundColor: 'var(--primary-light)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600 }}>
-                {t("calculated_milk_value", language)}
-              </div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--primary)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--primary)' }}>{t("gross_earnings", language)}</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)' }}>
                 ₹{passbook.total_earnings.toLocaleString()}
               </div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--status-pending)', marginTop: '0.2rem' }}>
-                {t("pending", language)}: ₹{passbook.pending_amount.toLocaleString()}
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                Calculated provisional value
+              </div>
+            </div>
+
+            {/* Paid Amount */}
+            <div className="card" style={{ padding: '0.85rem', backgroundColor: 'var(--status-settled-bg)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--status-settled)' }}>{t("total_paid", language)}</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--status-settled)' }}>
+                ₹{passbook.paid_amount.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-settled)' }}>
+                Confirmed bank settlements
+              </div>
+            </div>
+
+            {/* Pending Balance */}
+            <div className="card" style={{ padding: '0.85rem', backgroundColor: 'var(--status-pending-bg)' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--status-pending)' }}>{t("balance_due", language)}</div>
+              <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--status-pending)' }}>
+                ₹{passbook.pending_amount.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--status-pending)' }}>
+                Pending payment disbursement
               </div>
             </div>
           </div>
 
-          {/* Daily & Monthly Quick Summaries Banner */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '0.5rem',
-            padding: '0.65rem 0.85rem',
-            backgroundColor: 'var(--bg-page)',
-            borderRadius: 8,
-            marginBottom: '1rem',
-            fontSize: '0.82rem'
-          }}>
-            <div>
-              <span style={{ color: 'var(--text-muted)' }}>{t("today_summary", language)}: </span>
-              <strong>{passbook.today_litres || 0} L</strong> (₹{passbook.today_earnings?.toFixed(2) || '0.00'})
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{t("month_summary", language)}: </span>
-              <strong>{passbook.month_litres || 0} L</strong> (₹{passbook.month_earnings?.toFixed(2) || '0.00'})
-            </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0.2rem 0.4rem' }}>
+            * Note: Calculated earnings represent provisional milk value based on fat & SNF testing. Payments are marked Settled only upon banking credit confirmation.
           </div>
 
           {/* Explicit Notice about Milk Value vs Payment Disbursement */}

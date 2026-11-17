@@ -83,7 +83,7 @@ class FarmerResponse(BaseModel):
 
 # ----------------- Cattle Schemas -----------------
 class CattleCreate(BaseModel):
-    farmer_id: int
+    farmer_id: Optional[int] = None
     tag_number: str
     name: str
     breed: str
@@ -94,6 +94,7 @@ class CattleCreate(BaseModel):
     health_notes: Optional[str] = None
 
 class CattleUpdate(BaseModel):
+    tag_number: Optional[str] = None
     name: Optional[str] = None
     breed: Optional[str] = None
     age_years: Optional[float] = None
@@ -101,6 +102,32 @@ class CattleUpdate(BaseModel):
     milking_status: Optional[str] = None
     daily_yield_estimate: Optional[float] = None
     health_notes: Optional[str] = None
+
+class BreedAdvisoryResponse(BaseModel):
+    id: str
+    name: str
+    name_kn: str
+    category: str
+    origin: str
+    avg_yield_litres: str
+    fat_content: str
+    snf_content: str
+    heat_tolerance: str
+    description: str
+    description_kn: str
+    feeding_guide: Dict[str, str]
+    feeding_guide_kn: Dict[str, str]
+    care_tips: List[str]
+    care_tips_kn: List[str]
+    suitability: str
+
+class ReminderTemplateResponse(BaseModel):
+    template_id: str
+    title: str
+    title_kn: str
+    care_type: str
+    recommended_frequency: str
+    default_notes: str
 
 class CattleReminderCreate(BaseModel):
     farmer_id: int
@@ -209,19 +236,19 @@ class MilkRateRuleResponse(BaseModel):
         from_attributes = True
 
 class MilkCollectionCreate(BaseModel):
-    farmer_id: int
+    farmer_id: int = Field(..., gt=0, description="Valid registered farmer ID")
     collection_date: datetime.date
-    session: str # morning, evening
-    quantity_litres: float
-    fat_percentage: Optional[float] = None
-    snf_percentage: Optional[float] = None
+    session: str = Field(..., pattern="^(morning|evening)$", description="Session must be 'morning' or 'evening'")
+    quantity_litres: float = Field(..., gt=0.0, le=1000.0, description="Quantity in litres must be positive and realistic")
+    fat_percentage: Optional[float] = Field(None, ge=1.0, le=15.0, description="Fat percentage between 1.0% and 15.0%")
+    snf_percentage: Optional[float] = Field(None, ge=4.0, le=15.0, description="SNF percentage between 4.0% and 15.0%")
     notes: Optional[str] = None
 
 class MilkCollectionCorrection(BaseModel):
-    quantity_litres: float
-    fat_percentage: Optional[float] = None
-    snf_percentage: Optional[float] = None
-    reason: str
+    quantity_litres: float = Field(..., gt=0.0, le=1000.0, description="Quantity in litres must be positive and realistic")
+    fat_percentage: Optional[float] = Field(None, ge=1.0, le=15.0, description="Fat percentage between 1.0% and 15.0%")
+    snf_percentage: Optional[float] = Field(None, ge=4.0, le=15.0, description="SNF percentage between 4.0% and 15.0%")
+    reason: str = Field(..., min_length=3, description="Mandatory audit justification for correcting milk record")
     notes: Optional[str] = None
 
 class MilkAuditResponse(BaseModel):

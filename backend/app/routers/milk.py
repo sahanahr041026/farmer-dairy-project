@@ -40,6 +40,13 @@ def get_collections(
         user_farmer_id = payload.get("user_id")
         query = query.filter(models.MilkCollection.farmer_id == user_farmer_id)
     elif farmer_id:
+        # Validate that the requested farmer belongs to this admin's cooperative
+        farmer_target = db.query(models.Farmer).filter(
+            models.Farmer.id == farmer_id,
+            models.Farmer.cooperative_id == coop_id
+        ).first()
+        if not farmer_target:
+            raise HTTPException(status_code=404, detail="Farmer not found in your cooperative.")
         query = query.filter(models.MilkCollection.farmer_id == farmer_id)
 
     # Search filter (Name, UID, or Phone)
@@ -168,11 +175,42 @@ def get_today_collection_summary(
         "total_entries": len(records)
     }
 
+@router.get("/{collection_id}", response_model=schemas.MilkCollectionResponse)
+def get_single_collection(
+    collection_id: int,
+    payload: dict = Depends(get_current_user_payload),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves a single milk collection record with strict access control.
+    Farmers can only view their own records; admins can only view their cooperative's records.
+    """
+    coop_id = payload.get("cooperative_id")
+    role = payload.get("role")
+
+    collection = db.query(models.MilkCollection).filter(
+        models.MilkCollection.id == collection_id,
+        models.MilkCollection.cooperative_id == coop_id
+    ).first()
+
+    if not collection:
+        raise HTTPException(status_code=404, detail="Milk collection record not found.")
+
+    if role == "farmer" and collection.farmer_id != payload.get("user_id"):
+        raise HTTPException(status_code=403, detail="Access denied. You can only view your own records.")
+
+    resp = schemas.MilkCollectionResponse.from_orm(collection)
+    resp.farmer_name = collection.farmer.full_name if collection.farmer else None
+    resp.farmer_uid = collection.farmer.farmer_uid if collection.farmer else None
+    resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in collection.audits]
+    return resp
+
 
 @router.post("", response_model=schemas.MilkCollectionResponse, status_code=status.HTTP_201_CREATED)
 def record_milk_collection(
     data: schemas.MilkCollectionCreate,
     allow_duplicate: bool = False,
+    overwrite: bool = False,
     admin: models.AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -223,6 +261,9 @@ def record_milk_collection(
         )
 
     # 5. Verify farmer belongs to admin's cooperative
+    if data.collection_date > datetime.date.today() + datetime.timedelta(days=1):
+        raise HTTPException(status_code=400, detail="Collection date cannot be in the future.")
+
     farmer = db.query(models.Farmer).filter(
         models.Farmer.id == data.farmer_id,
         models.Farmer.cooperative_id == admin.cooperative_id
@@ -246,23 +287,55 @@ def record_milk_collection(
         models.MilkCollection.session == norm_session
     ).first()
 
-    if existing and not allow_duplicate:
+    if existing and not allow_duplicate and not overwrite:
         session_label = "Morning" if norm_session == "morning" else "Evening"
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Duplicate entry: A record already exists for {farmer.full_name} on {data.collection_date} ({session_label} session). Duplicate attempts are prevented to protect ledger integrity."
         )
 
-    # 7. Resolve applicable rate rule for the collection date
-    rule = resolve_rate_rule(db, admin.cooperative_id, data.collection_date)
-    calc_fat = fat if fat is not None else rule.base_fat
-    calc_snf = snf if snf is not None else rule.base_snf
+    # Active rate rule
+    rule = db.query(models.MilkRateRule).filter(
+        models.MilkRateRule.cooperative_id == admin.cooperative_id,
+        models.MilkRateRule.is_active == True
+    ).first()
+
+    if not rule:
+        rule = models.MilkRateRule(base_rate=41.0, base_fat=4.0, base_snf=8.5, fat_rate_step=0.45, snf_rate_step=0.30)
+
+    fat = data.fat_percentage if data.fat_percentage is not None else rule.base_fat
+    snf = data.snf_percentage if data.snf_percentage is not None else rule.base_snf
 
     # Authoritative server-side calculation
     rate = compute_rate(rule, calc_fat, calc_snf)
     amount = round(data.quantity_litres * rate, 2)
 
-    # 7. If existing record exists and allow_duplicate was explicitly requested, update with audit
+    if existing and overwrite:
+        audit = models.MilkRecordAudit(
+            collection_id=existing.id,
+            admin_id=admin.id,
+            previous_quantity=existing.quantity_litres,
+            new_quantity=data.quantity_litres,
+            previous_fat=existing.fat_percentage,
+            new_fat=data.fat_percentage,
+            previous_snf=existing.snf_percentage,
+            new_snf=data.snf_percentage,
+            previous_amount=existing.total_amount,
+            new_amount=amount,
+            reason="Confirmed overwrite of duplicate session entry"
+        )
+        db.add(audit)
+        existing.quantity_litres = data.quantity_litres
+        existing.fat_percentage = data.fat_percentage
+        existing.snf_percentage = data.snf_percentage
+        existing.rate_per_litre = rate
+        existing.total_amount = amount
+        existing.recorded_by_admin_id = admin.id
+        if data.notes:
+            existing.notes = data.notes
+        collection = existing
+    else:
+        # 7. If existing record exists and allow_duplicate was explicitly requested, update with audit
     if existing and allow_duplicate:
         audit = models.MilkRecordAudit(
             collection_id=existing.id,
@@ -298,23 +371,23 @@ def record_milk_collection(
     else:
         # Create brand new record
         collection = models.MilkCollection(
-            cooperative_id=admin.cooperative_id,
-            farmer_id=data.farmer_id,
-            collection_date=data.collection_date,
-            session=norm_session,
-            quantity_litres=data.quantity_litres,
-            fat_percentage=data.fat_percentage,
-            snf_percentage=data.snf_percentage,
-            rate_per_litre=rate,
-            total_amount=amount,
-            rate_rule_id=rule.id,
+                cooperative_id=admin.cooperative_id,
+                farmer_id=data.farmer_id,
+                collection_date=data.collection_date,
+                session=norm_session,
+                quantity_litres=data.quantity_litres,
+                fat_percentage=data.fat_percentage,
+                snf_percentage=data.snf_percentage,
+                rate_per_litre=rate,
+                total_amount=amount,
+                rate_rule_id=rule.id,
             calculation_method=rule.calculation_method,
             record_status="recorded",
             payment_status="pending",
-            recorded_by_admin_id=admin.id,
-            notes=data.notes
-        )
-        db.add(collection)
+                recorded_by_admin_id=admin.id,
+                notes=data.notes
+            )
+            db.add(collection)
 
     db.flush()
 
@@ -324,10 +397,10 @@ def record_milk_collection(
     notif = models.Notification(
         cooperative_id=admin.cooperative_id,
         farmer_id=farmer.id,
-        title="Milk Recorded",
-        title_kn="ಹಾಲು ಸಂಗ್ರಹ ದಾಖಲಾಗಿದೆ",
-        message=f"{data.quantity_litres:.1f}L recorded for {data.collection_date} ({session_en}). Milk Value: ₹{amount:.2f}.",
-        message_kn=f"{data.collection_date} ({session_kn}) ಕ್ಕೆ {data.quantity_litres:.1f} ಲೀಟರ್ ಹಾಲು ದಾಖಲಾಗಿದೆ. ಮೌಲ್ಯ: ₹{amount:.2f}.",
+        title="Milk Recorded" if not (existing and overwrite) else "Milk Record Updated",
+        title_kn="ಹಾಲು ಸಂಗ್ರಹ ದಾಖಲಾಗಿದೆ" if not (existing and overwrite) else "ಹಾಲು ದಾಖಲೆ ನವೀಕರಿಸಲಾಗಿದೆ",
+        message=f"{data.quantity_litres:.1f}L recorded for {data.collection_date} ({session_en}). Rate: ₹{rate:.2f}/L, Milk Value: ₹{amount:.2f}.",
+        message_kn=f"{data.collection_date} ({session_kn}) ಕ್ಕೆ {data.quantity_litres:.1f} ಲೀಟರ್ ಹಾಲು ದಾಖಲಾಗಿದೆ. ದರ: ₹{rate:.2f}/ಲೀ, ಮೌಲ್ಯ: ₹{amount:.2f}.",
         category="milk"
     )
     db.add(notif)

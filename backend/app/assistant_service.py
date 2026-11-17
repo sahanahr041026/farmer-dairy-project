@@ -150,6 +150,57 @@ KNOWLEDGE_BASE = [
             "How to test for subclinical mastitis?",
             "How long after milking do teat canals close?"
         ]
+    },
+    {
+        "keywords": ["heat", "insemination", "ai", "breeding", "crossing", "semen", "ಮದ", "ಕೃತಕ ಗರ್ಭಧಾರಣೆ", "ಹಸು ಮದಕ್ಕೆ"],
+        "en": (
+            "Heat Detection & Optimal Artificial Insemination (AI) Timing:\n\n"
+            "1. Primary Sign: 'Standing Heat' (the cow stands firmly when mounted by other animals).\n"
+            "2. Secondary Signs: Clear, stringy, transparent mucous discharge from the vulva, continuous restlessness/bellowing, frequent urination, and slight drop in milk yield.\n"
+            "3. The AM/PM Rule for AI Insemination:\n"
+            "   - If cow comes into heat in the Morning (AM): Inseminate in the Evening (PM).\n"
+            "   - If cow comes into heat in the Evening (PM): Inseminate the next Morning (AM).\n"
+            "4. Post-AI Care: Avoid sudden stress, provide cool shade, and ensure adequate drinking water.\n\n"
+            "Tip: Inseminating 12 to 18 hours after the onset of standing heat gives the highest conception rate (65-75%)."
+        ),
+        "kn": (
+            "ಹಸು ಮದಕ್ಕೆ ಬರುವ ಲಕ್ಷಣಗಳು ಮತ್ತು ಕೃತಕ ಗರ್ಭಧಾರಣೆ (AI) ಸಮಯ:\n\n"
+            "1. ಪ್ರಮುಖ ಲಕ್ಷಣ: 'ಸ್ಥಿರ ನಿಲುವು' (ಇತರ ಹಸುಗಳು ಹತ್ತಿದಾಗ ಸ್ಥಿರವಾಗಿ ನಿಲ್ಲುವುದು).\n"
+            "2. ಇತರ ಲಕ್ಷಣಗಳು: ಗಾಜಿನಂತೆ ಸ್ವಚ್ಛವಾದ ಲೋಳೆಯ ವಿಸರ್ಜನೆ, ಚಡಪಡಿಕೆ, ಮೇವು ತಿನ್ನದಿರುವುದು ಮತ್ತು ಹಾಲಿನ ಇಳುವರಿ ಸ್ವಲ್ಪ ಇಳಿಕೆ.\n"
+            "3. ಕೃತಕ ಗರ್ಭಧಾರಣೆಯ AM/PM ನಿಯಮ:\n"
+            "   - ಹಸು ಬೆಳಿಗ್ಗೆ ಮದಕ್ಕೆ ಬಂದರೆ: ಸಂಜೆ ಕೃತಕ ಗರ್ಭಧಾರಣೆ ಮಾಡಿಸಿ.\n"
+            "   - ಹಸು ಸಂಜೆ ಮದಕ್ಕೆ ಬಂದರೆ: ಮರುದಿನ ಬೆಳಿಗ್ಗೆ ಗರ್ಭಧಾರಣೆ ಮಾಡಿಸಿ.\n"
+            "4. ಕಾಳಜಿ: ಗರ್ಭಧಾರಣೆಯ ನಂತರ ಹಸುವಿಗೆ ತಂಪಾದ ನೆರಳು ಮತ್ತು ಕುಡಿಯಲು ಸಾಕಷ್ಟು ನೀರು ನೀಡಿ."
+        ),
+        "followups": [
+            "What is the AM/PM rule for cattle?",
+            "How to detect silent heat in buffaloes?",
+            "When should pregnancy diagnosis (PD) be done?"
+        ]
+    },
+    {
+        "keywords": ["calf", "calves", "colostrum", "newborn", "navel", "ಕರು", "ಗಿಣ್ಣದ ಹಾಲು", "ಹೊಕ್ಕಳು"],
+        "en": (
+            "Newborn Calf Care & Colostrum Feeding Protocol:\n\n"
+            "1. Clear Airways: Immediately clear mucus from calf's nostrils and mouth upon birth; stimulate breathing by rubbing chest with dry straw.\n"
+            "2. Navel Cord Care: Cut navel cord 2 inches from the body with clean sterilized scissors, tie with thread, and dip immediately in 7% Tincture of Iodine to prevent Navel-ill/Joint-ill.\n"
+            "3. Golden Colostrum Rule: Feed warm colostrum (mother's first milk) within 1 to 2 hours of birth! Dose: 10% of calf's body weight (approx. 2.5 to 3 Litres).\n"
+            "   - Colostrum contains maternal antibodies (immunoglobulins) essential for survival; gut absorption drops sharply after 6 hours.\n"
+            "4. Deworming: First deworming dose at 10–14 days of age."
+        ),
+        "kn": (
+            "ನವಜಾತ ಕರುಗಳ ಪಾಲನೆ ಮತ್ತು ಗಿಣ್ಣದ ಹಾಲಿನ ಮಹತ್ವ:\n\n"
+            "1. ಜನಿಸಿದ ತಕ್ಷಣ: ಕರುವಿನ ಮೂಗು ಮತ್ತು ಬಾಯಿಯ ಲೋಳೆಯನ್ನು ಶುದ್ಧ ಬಟ್ಟೆಯಿಂದ ಒರೆಸಿ ಉಸಿರಾಟ ಸರಾಗಗೊಳಿಸಿ.\n"
+            "2. ಹೊಕ್ಕಳು ಬಳ್ಳಿ ಆರೈಕೆ: ಹೊಕ್ಕಳು ಬಳ್ಳಿಯನ್ನು 2 ಇಂಚು ಬಿಟ್ಟು ಕತ್ತರಿಸಿ ಟಿಂಕ್ಚರ್ ಅಯೋಡಿನ್ ದ್ರಾವಣವನ್ನು ಹಚ್ಚಿ.\n"
+            "3. ಗಿಣ್ಣದ ಹಾಲು (Colostrum): ಕರು ಹುಟ್ಟಿದ 1 ರಿಂದ 2 ಗಂಟೆಯೊಳಗೆ ಕಡ್ಡಾಯವಾಗಿ ಗಿಣ್ಣದ ಹಾಲು ಕುಡಿಸಿ (ತೂಕದ 10% ರಷ್ಟು, ಸುಮಾರು 2.5 ರಿಂದ 3 ಲೀಟರ್).\n"
+            "   - ಇದು ಕರುವಿಗೆ ರೋಗನಿರೋಧಕ ಶಕ್ತಿ ನೀಡುವ ನೈಸರ್ಗಿಕ ಅಮೃತ.\n"
+            "4. ಜಂತುಹುಳು ಔಷಧಿ: 10-14 ನೇ ದಿನಕ್ಕೆ ಮೊದಲ ಬಾರಿಗೆ ನೀಡಿ."
+        ),
+        "followups": [
+            "Why must colostrum be given within 2 hours?",
+            "How to treat calf diarrhea / scours?",
+            "Feeding milk replacer to calves"
+        ]
     }
 ]
 
@@ -253,10 +304,15 @@ def get_assistant_response(
             "What signs mean I should contact a vet?"
         ]
 
-    # Clearly label fallback offline mode
+    # Clearly label fallback offline mode with safety disclaimer
     preface = "[Expert Curated Dairy Advisory — Verified Local Mode]\n\n"
+    disclaimer = (
+        "\n\n⚠️ ಸೂಚನೆ: ಇದು ಸಾಮಾನ್ಯ ಶೈಕ್ಷಣಿಕ ಮಾಹಿತಿಯಾಗಿದೆ. ರೋಗ ಲಕ್ಷಣಗಳಿದ್ದಲ್ಲಿ ಅಥವಾ ತುರ್ತು ಚಿಕಿತ್ಸೆಗೆ ನಿಮ್ಮ ಅಧಿಕೃತ ಪಶುವೈದ್ಯರನ್ನು ಸಂಪರ್ಕಿಸಿ."
+        if lang == "kn" else
+        "\n\n⚠️ Safety Advisory: DairySathi Assistant provides general educational guidance only and does NOT provide clinical veterinary diagnoses or medication prescriptions. For sick animals, consult your cooperative veterinarian immediately."
+    )
     return {
-        "response": preface + reply_text,
+        "response": preface + reply_text + disclaimer,
         "source": "curated_expert_faq",
         "vet_contact": vet_contact,
         "suggested_followups": followups

@@ -14,6 +14,8 @@ def get_suggested_prompts(language: str = "en"):
             {"text": "ಹಾಲು ಕೊಡುವ ಹಸುವಿಗೆ ಏನು ಪೌಷ್ಟಿಕ ಆಹಾರ ನೀಡಬೇಕು?", "category": "nutrition"},
             {"text": "ಮುಂದಿನ ಕಾಲುಬಾಯಿ ರೋಗದ ಲಸಿಕೆ ಯಾವಾಗ ನೀಡಬೇಕು?", "category": "vaccination"},
             {"text": "ಹಾಲಿನ ಫ್ಯಾಟ್ ಮತ್ತು ಎಸ್‌ಎನ್‌ಎಫ್ ಹೆಚ್ಚಿಸುವುದು ಹೇಗೆ?", "category": "milk_quality"},
+            {"text": "ಹಸು ಮದಕ್ಕೆ ಬಂದಾಗ ಗರ್ಭಧಾರಣೆ ಯಾವಾಗ ಮಾಡಿಸಬೇಕು?", "category": "breeding"},
+            {"text": "ಕರು ಜನಿಸಿದ ತಕ್ಷಣ ಗಿಣ್ಣದ ಹಾಲು ಎಷ್ಟು ಕುಡಿಸಬೇಕು?", "category": "calf_care"},
             {"text": "ಪಶುವೈದ್ಯರನ್ನು ತುರ್ತಾಗಿ ಯಾವಾಗ ಸಂಪರ್ಕಿಸಬೇಕು?", "category": "emergency"},
             {"text": "ಕೆಚ್ಚಲು ಬಾವು ರೋಗ ತಡೆಗಟ್ಟುವುದು ಹೇಗೆ?", "category": "health"}
         ]
@@ -21,6 +23,8 @@ def get_suggested_prompts(language: str = "en"):
         {"text": "What should I feed my lactating cow?", "category": "nutrition"},
         {"text": "When is the next vaccination camp scheduled?", "category": "vaccination"},
         {"text": "How do I improve milk fat and SNF percentage?", "category": "milk_quality"},
+        {"text": "What is the optimal timing for Artificial Insemination (AI)?", "category": "breeding"},
+        {"text": "How much colostrum should a newborn calf receive?", "category": "calf_care"},
         {"text": "What emergency signs mean I must contact a vet?", "category": "emergency"},
         {"text": "How to prevent and detect mastitis early?", "category": "health"}
     ]

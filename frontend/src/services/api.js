@@ -79,8 +79,8 @@ export const api = {
     return request(`/milk${qs ? `?${qs}` : ''}`);
   },
   getTodaySummary: () => request('/milk/today'),
-  recordCollection: (data, allowDuplicate = false) => 
-    request(`/milk?allow_duplicate=${allowDuplicate}`, { method: 'POST', body: JSON.stringify(data) }),
+  recordCollection: (data, allowDuplicate = false, overwrite = false) => 
+    request(`/milk?allow_duplicate=${allowDuplicate}&overwrite=${overwrite}`, { method: 'POST', body: JSON.stringify(data) }),
   correctCollection: (id, data) => 
     request(`/milk/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
@@ -98,6 +98,11 @@ export const api = {
     return request(`/cattle${qs ? `?${qs}` : ''}`);
   },
   createCattle: (data) => request('/cattle', { method: 'POST', body: JSON.stringify(data) }),
+  updateCattle: (id, data) => request(`/cattle/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCattle: (id) => request(`/cattle/${id}`, { method: 'DELETE' }),
+  getBreeds: () => request('/cattle/breeds'),
+  getBreedDetails: (id) => request(`/cattle/breeds/${id}`),
+  getReminderTemplates: () => request('/cattle/reminders/templates'),
   getReminders: (params = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/cattle/reminders${qs ? `?${qs}` : ''}`);
