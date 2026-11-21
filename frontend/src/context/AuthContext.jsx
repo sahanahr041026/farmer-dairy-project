@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
+import { api, UNAUTHORIZED_EVENT } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -19,6 +19,18 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
+  const logout = useCallback(() => {
+    localStorage.removeItem('dairysathi_token');
+    localStorage.removeItem('dairysathi_user');
+    setUser(null);
+  }, []);
+
+  // api.js dispatches this when the server rejects the token (expired / deactivated account).
+  useEffect(() => {
+    window.addEventListener(UNAUTHORIZED_EVENT, logout);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, logout);
+  }, [logout]);
+
   useEffect(() => {
     async function initAuth() {
       const token = localStorage.getItem('dairysathi_token');
@@ -32,14 +44,17 @@ export function AuthProvider({ children }) {
             localStorage.setItem('dairysathi_lang', profile.language);
           }
         } catch (err) {
-          console.warn("Session expired or invalid, logging out:", err.message);
-          logout();
+          // Only drop the session when the server rejected it; keep it on transient network errors.
+          if (err.status === 401 || err.status === 403) {
+            console.warn("Session expired or invalid, logging out:", err.message);
+            logout();
+          }
         }
       }
       setLoading(false);
     }
     initAuth();
-  }, []);
+  }, [logout]);
 
   const loginAdmin = async (credentials) => {
     const res = await api.loginAdmin(credentials);
@@ -81,12 +96,6 @@ export function AuthProvider({ children }) {
       localStorage.setItem('dairysathi_lang', res.language);
     }
     return profile;
-  };
-
-  const logout = () => {
-    localStorage.removeItem('dairysathi_token');
-    localStorage.removeItem('dairysathi_user');
-    setUser(null);
   };
 
   const setLanguage = async (newLang) => {

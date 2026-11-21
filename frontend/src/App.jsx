@@ -1,31 +1,41 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { BottomNav } from './components/BottomNav';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Pages are code-split per route so the landing/login bundle stays small.
+const named = (loader, name) => lazy(() => loader().then((m) => ({ default: m[name] })));
 
 // Public Pages
-import { LandingPage } from './pages/LandingPage';
-import { AdminLoginPage } from './pages/AdminLoginPage';
-import { FarmerLoginPage } from './pages/FarmerLoginPage';
+const LandingPage = named(() => import('./pages/LandingPage'), 'LandingPage');
+const AdminLoginPage = named(() => import('./pages/AdminLoginPage'), 'AdminLoginPage');
+const FarmerLoginPage = named(() => import('./pages/FarmerLoginPage'), 'FarmerLoginPage');
 
 // Farmer Pages
-import { FarmerHome } from './pages/farmer/FarmerHome';
-import { FarmerPassbook } from './pages/farmer/FarmerPassbook';
-import { FarmerCattle } from './pages/farmer/FarmerCattle';
-import { FarmerAssistant } from './pages/farmer/FarmerAssistant';
-import { FarmerNotifications } from './pages/farmer/FarmerNotifications';
+const FarmerHome = named(() => import('./pages/farmer/FarmerHome'), 'FarmerHome');
+const FarmerPassbook = named(() => import('./pages/farmer/FarmerPassbook'), 'FarmerPassbook');
+const FarmerCattle = named(() => import('./pages/farmer/FarmerCattle'), 'FarmerCattle');
+const FarmerAssistant = named(() => import('./pages/farmer/FarmerAssistant'), 'FarmerAssistant');
+const FarmerNotifications = named(() => import('./pages/farmer/FarmerNotifications'), 'FarmerNotifications');
 
 // Admin Pages
-import { AdminLayout } from './pages/admin/AdminLayout';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminFarmers } from './pages/admin/AdminFarmers';
-import { AdminMilkCollection } from './pages/admin/AdminMilkCollection';
-import { AdminRates } from './pages/admin/AdminRates';
-import { AdminPayments } from './pages/admin/AdminPayments';
-import { AdminCattleCare } from './pages/admin/AdminCattleCare';
-import { AdminReports } from './pages/admin/AdminReports';
-import { AdminSMSNotifications } from './pages/admin/AdminSMSNotifications';
+const AdminLayout = named(() => import('./pages/admin/AdminLayout'), 'AdminLayout');
+const AdminDashboard = named(() => import('./pages/admin/AdminDashboard'), 'AdminDashboard');
+const AdminFarmers = named(() => import('./pages/admin/AdminFarmers'), 'AdminFarmers');
+const AdminMilkCollection = named(() => import('./pages/admin/AdminMilkCollection'), 'AdminMilkCollection');
+const AdminRates = named(() => import('./pages/admin/AdminRates'), 'AdminRates');
+const AdminPayments = named(() => import('./pages/admin/AdminPayments'), 'AdminPayments');
+const AdminCattleCare = named(() => import('./pages/admin/AdminCattleCare'), 'AdminCattleCare');
+const AdminReports = named(() => import('./pages/admin/AdminReports'), 'AdminReports');
+const AdminSMSNotifications = named(() => import('./pages/admin/AdminSMSNotifications'), 'AdminSMSNotifications');
+
+function PageFallback() {
+  return (
+    <div style={{ padding: '3rem 1rem', textAlign: 'center', color: 'var(--primary)' }}>Loading…</div>
+  );
+}
 
 // Farmer Layout wrapper
 function FarmerLayoutWrapper() {
@@ -77,8 +87,10 @@ function ProtectedRoute({ allowedRole, children }) {
 
 export function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <BrowserRouter>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* Public Portal */}
           <Route element={<PublicLayoutWrapper />}>
@@ -126,8 +138,10 @@ export function App() {
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

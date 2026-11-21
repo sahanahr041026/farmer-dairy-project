@@ -6,6 +6,13 @@ import {
 } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 
+// Random 4-digit PIN (crypto-backed) so new farmers never share a guessable default.
+function generatePin() {
+  const buf = new Uint32Array(1);
+  window.crypto.getRandomValues(buf);
+  return String(buf[0] % 10000).padStart(4, '0');
+}
+
 export function AdminFarmers() {
   const [farmers, setFarmers] = useState([]);
   const [villages, setVillages] = useState([]);
@@ -27,7 +34,7 @@ export function AdminFarmers() {
     pin_code: '',
     bank_account_no: '',
     ifsc_code: '',
-    initial_pin: '1234'
+    initial_pin: generatePin()
   });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -101,7 +108,7 @@ export function AdminFarmers() {
         pin_code: '',
         bank_account_no: '',
         ifsc_code: '',
-        initial_pin: '1234'
+        initial_pin: generatePin()
       });
       loadFarmers();
       setTimeout(() => {
@@ -341,12 +348,16 @@ export function AdminFarmers() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Initial Login PIN (Default: 1234)</label>
+            <label className="form-label">Initial Login PIN (4 digits, share it with the farmer)</label>
             <input
               type="text"
               className="form-input"
               value={newFarmer.initial_pin}
-              onChange={(e) => setNewFarmer({ ...newFarmer, initial_pin: e.target.value })}
+              onChange={(e) => setNewFarmer({ ...newFarmer, initial_pin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+              inputMode="numeric"
+              pattern="\d{4}"
+              maxLength={4}
+              title="Enter exactly 4 digits"
               required
             />
           </div>

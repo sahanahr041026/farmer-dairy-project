@@ -185,7 +185,7 @@ export function FarmerHome() {
           borderRadius: 'var(--radius-sm)',
           fontSize: '0.88rem'
         }}>
-          <span>{t("rate_today", language)}: <strong>₹{rateRule ? rateRule.base_rate.toFixed(2) : '41.00'}/L</strong></span>
+          <span>{t("rate_today", language)}: <strong>₹{rateRule ? rateRule.base_rate.toFixed(2) : '—'}/L</strong></span>
           <span style={{ color: 'var(--primary)', fontWeight: 700 }}>
             {language === 'kn' ? 'ಇಂದಿನ ಒಟ್ಟು' : 'Today'}: ₹{todayMilk ? todayMilk.total_amount.toFixed(2) : '0.00'}
           </span>

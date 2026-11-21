@@ -25,9 +25,15 @@ export function AdminReports() {
     loadData();
   }, []);
 
-  const handleDownloadCollectionsCsv = () => {
-    const url = api.exportCollectionsCsv(startDate, endDate);
-    window.open(url, '_blank');
+  const [downloadError, setDownloadError] = useState('');
+
+  const handleDownloadCollectionsCsv = async () => {
+    setDownloadError('');
+    try {
+      await api.downloadCollectionsCsv(startDate, endDate);
+    } catch (e) {
+      setDownloadError(e.message || 'Failed to download CSV export.');
+    }
   };
 
   return (
@@ -50,6 +56,12 @@ export function AdminReports() {
           <span>Download Collections CSV</span>
         </button>
       </div>
+
+      {downloadError && (
+        <div role="alert" style={{ background: '#fdecea', color: '#b71c1c', padding: '0.75rem 1rem', borderRadius: 8, marginBottom: '1rem', fontSize: '0.9rem' }}>
+          {downloadError}
+        </div>
+      )}
 
       {/* Date Range Selector Card */}
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1.25rem' }}>
