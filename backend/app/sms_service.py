@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal
 from app import models
+from app.timeutil import utcnow
 
 def is_unicode_message(text: str) -> bool:
     try:
@@ -211,7 +212,7 @@ class SMSService:
             f"Submitted to Gateway ({len(valid_recipients)} recipients)"
         )
         notes = (
-            f"Broadcast triggered by admin '{admin_username}' on {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}. "
+            f"Broadcast triggered by admin '{admin_username}' on {utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}. "
             f"Mode: {'Simulated' if is_mock else 'Live DLT'}."
         )
 
@@ -295,8 +296,8 @@ def queue_announcement_sms_jobs(announcement_id: int, cooperative_id: int):
             job.status = result.get("status", "submitted")
             job.provider_ref = result.get("provider_ref")
             job.error_message = result.get("error_message")
-            job.sent_at = datetime.datetime.utcnow()
-            job.updated_at = datetime.datetime.utcnow()
+            job.sent_at = utcnow()
+            job.updated_at = utcnow()
 
         db.commit()
     finally:
@@ -361,8 +362,8 @@ def queue_vaccination_sms_job(reminder_id: int, cooperative_id: int):
         job.status = result.get("status", "submitted")
         job.provider_ref = result.get("provider_ref")
         job.error_message = result.get("error_message")
-        job.sent_at = datetime.datetime.utcnow()
-        job.updated_at = datetime.datetime.utcnow()
+        job.sent_at = utcnow()
+        job.updated_at = utcnow()
 
         db.commit()
     finally:

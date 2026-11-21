@@ -38,26 +38,31 @@ def get_farmers(
     today = datetime.date.today()
     start_of_month = today.replace(day=1)
 
+    farmer_ids = [f.id for f in farmers]
+    cattle_counts, monthly_litres, pending_amounts = {}, {}, {}
+    if farmer_ids:
+        cattle_counts = dict(db.query(models.Cattle.farmer_id, func.count(models.Cattle.id)).filter(
+            models.Cattle.farmer_id.in_(farmer_ids)
+        ).group_by(models.Cattle.farmer_id).all())
+        monthly_litres = dict(db.query(
+            models.MilkCollection.farmer_id, func.sum(models.MilkCollection.quantity_litres)
+        ).filter(
+            models.MilkCollection.farmer_id.in_(farmer_ids),
+            models.MilkCollection.collection_date >= start_of_month
+        ).group_by(models.MilkCollection.farmer_id).all())
+        pending_amounts = dict(db.query(
+            models.MilkCollection.farmer_id, func.sum(models.MilkCollection.total_amount)
+        ).filter(
+            models.MilkCollection.farmer_id.in_(farmer_ids),
+            models.MilkCollection.payment_status != "settled"
+        ).group_by(models.MilkCollection.farmer_id).all())
+
     result = []
     for f in farmers:
-        cattle_count = db.query(func.count(models.Cattle.id)).filter(models.Cattle.farmer_id == f.id).scalar() or 0
-
-        # Monthly litres
-        monthly_litres = db.query(func.sum(models.MilkCollection.quantity_litres)).filter(
-            models.MilkCollection.farmer_id == f.id,
-            models.MilkCollection.collection_date >= start_of_month
-        ).scalar() or 0.0
-
-        # Pending payouts
-        pending_amount = db.query(func.sum(models.MilkCollection.total_amount)).filter(
-            models.MilkCollection.farmer_id == f.id,
-            models.MilkCollection.payment_status != "settled"
-        ).scalar() or 0.0
-
-        resp = schemas.FarmerResponse.from_orm(f)
-        resp.cattle_count = cattle_count
-        resp.total_litres_month = round(monthly_litres, 1)
-        resp.pending_payout = round(pending_amount, 2)
+        resp = schemas.FarmerResponse.model_validate(f)
+        resp.cattle_count = cattle_counts.get(f.id, 0)
+        resp.total_litres_month = round(monthly_litres.get(f.id) or 0.0, 1)
+        resp.pending_payout = round(pending_amounts.get(f.id) or 0.0, 2)
         result.append(resp)
 
     return result
@@ -108,7 +113,7 @@ def create_farmer(
     # Create account with PIN
     account = models.FarmerAccount(
         farmer_id=farmer.id,
-        pin_hash=hash_password(data.initial_pin or "1234"),
+        pin_hash=hash_password(data.initial_pin),
         language_preference="en"
     )
     db.add(account)
@@ -128,7 +133,7 @@ def create_farmer(
     db.commit()
     db.refresh(farmer)
 
-    resp = schemas.FarmerResponse.from_orm(farmer)
+    resp = schemas.FarmerResponse.model_validate(farmer)
     resp.cattle_count = 0
     resp.total_litres_month = 0.0
     resp.pending_payout = 0.0
@@ -153,7 +158,7 @@ def get_farmer_details(
         models.MilkCollection.payment_status != "settled"
     ).scalar() or 0.0
 
-    resp = schemas.FarmerResponse.from_orm(farmer)
+    resp = schemas.FarmerResponse.model_validate(farmer)
     resp.cattle_count = cattle_count
     resp.pending_payout = round(pending_amount, 2)
     return resp
@@ -189,7 +194,7 @@ def update_farmer(
 
     db.commit()
     db.refresh(farmer)
-    return schemas.FarmerResponse.from_orm(farmer)
+    return schemas.FarmerResponse.model_validate(farmer)
 
 @router.put("/me/language")
 def update_farmer_language(

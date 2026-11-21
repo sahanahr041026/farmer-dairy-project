@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin, get_current_user_payload
+from app.timeutil import utcnow
 
 router = APIRouter(prefix="/announcements", tags=["Cooperative Schemes & Announcements"])
 
@@ -149,7 +150,7 @@ def update_announcement(
     for field, val in update_fields.items():
         setattr(announcement, field, val)
 
-    announcement.updated_at = datetime.datetime.utcnow()
+    announcement.updated_at = utcnow()
     db.commit()
     db.refresh(announcement)
     return announcement

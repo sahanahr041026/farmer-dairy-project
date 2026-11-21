@@ -1,6 +1,6 @@
 import datetime
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 # ----------------- Auth Schemas -----------------
 class AdminLoginRequest(BaseModel):
@@ -11,7 +11,7 @@ class AdminLoginRequest(BaseModel):
 class FarmerLoginRequest(BaseModel):
     cooperative_code: str
     farmer_uid_or_phone: str
-    pin: str
+    pin: str = Field(min_length=1, max_length=16)
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -39,8 +39,7 @@ class CooperativeResponse(BaseModel):
     vet_contact_phone: Optional[str]
     address: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- Farmer Schemas -----------------
 class FarmerCreate(BaseModel):
@@ -51,7 +50,7 @@ class FarmerCreate(BaseModel):
     pin_code: Optional[str] = ""
     bank_account_no: Optional[str] = ""
     ifsc_code: Optional[str] = ""
-    initial_pin: Optional[str] = "1234"
+    initial_pin: str = Field(pattern=r"^\d{4}$", description="4-digit login PIN")
 
 class FarmerUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -78,8 +77,7 @@ class FarmerResponse(BaseModel):
     total_litres_month: Optional[float] = 0.0
     pending_payout: Optional[float] = 0.0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- Cattle Schemas -----------------
 class CattleCreate(BaseModel):
@@ -168,8 +166,7 @@ class CattleReminderResponse(BaseModel):
     created_at: datetime.datetime
     updated_at: Optional[datetime.datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CattleResponse(BaseModel):
     id: int
@@ -187,8 +184,7 @@ class CattleResponse(BaseModel):
     reminders: List[CattleReminderResponse] = []
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- Milk Collection & Rates -----------------
 class MilkRateRuleCreate(BaseModel):
@@ -232,8 +228,7 @@ class MilkRateRuleResponse(BaseModel):
     effective_to: Optional[datetime.date] = None
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MilkCollectionCreate(BaseModel):
     farmer_id: int = Field(..., gt=0, description="Valid registered farmer ID")
@@ -268,8 +263,7 @@ class MilkAuditResponse(BaseModel):
     reason: str
     corrected_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MilkCollectionResponse(BaseModel):
     id: int
@@ -294,8 +288,7 @@ class MilkCollectionResponse(BaseModel):
     updated_at: datetime.datetime
     audits: List[MilkAuditResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class MilkHistorySummaryResponse(BaseModel):
     total_litres: float
@@ -314,8 +307,8 @@ class SettlementCreate(BaseModel):
     reference_no: Optional[str] = None
 
 class SettlementUpdate(BaseModel):
-    status: str # pending, approved, completed
-    paid_amount: Optional[float] = None
+    status: Literal["approved", "completed"]
+    paid_amount: Optional[float] = Field(default=None, ge=0)
     payment_date: Optional[datetime.date] = None
     reference_no: Optional[str] = None
 
@@ -337,8 +330,7 @@ class PaymentSettlementResponse(BaseModel):
     status: str
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- SMS Campaign Schemas -----------------
 class SMSPreviewRequest(BaseModel):
@@ -377,8 +369,7 @@ class SMSCampaignResponse(BaseModel):
     sent_at: datetime.datetime
     notes: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- Notifications & Assistant -----------------
 class NotificationResponse(BaseModel):
@@ -393,8 +384,7 @@ class NotificationResponse(BaseModel):
     is_read: bool
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class AssistantChatRequest(BaseModel):
     message: str
@@ -480,8 +470,7 @@ class AnnouncementResponse(BaseModel):
     created_at: datetime.datetime
     updated_at: Optional[datetime.datetime]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ----------------- Phase 4: SMS Jobs & Delivery Reporting -----------------
 class SMSJobResponse(BaseModel):
@@ -503,8 +492,7 @@ class SMSJobResponse(BaseModel):
     sent_at: Optional[datetime.datetime]
     created_at: datetime.datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class SMSDeliverySummaryResponse(BaseModel):
     total_jobs: int

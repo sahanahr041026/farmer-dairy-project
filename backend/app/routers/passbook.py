@@ -62,10 +62,10 @@ def get_passbook(
 
     record_responses = []
     for r in records:
-        resp = schemas.MilkCollectionResponse.from_orm(r)
+        resp = schemas.MilkCollectionResponse.model_validate(r)
         resp.farmer_name = farmer.full_name
         resp.farmer_uid = farmer.farmer_uid
-        resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in r.audits]
+        resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in r.audits]
         record_responses.append(resp)
 
     # Daily (today) metrics

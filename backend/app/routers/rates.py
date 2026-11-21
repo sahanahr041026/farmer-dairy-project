@@ -70,31 +70,10 @@ def resolve_rate_rule(db: Session, cooperative_id: int, target_date: datetime.da
     if active_rule:
         return active_rule
 
-    # 3. Create default demonstration rule if none exists
-    new_rule = models.MilkRateRule(
-        cooperative_id=cooperative_id,
-        rule_name="Standard Quality Matrix (Demo)",
-        version="1.0",
-        calculation_method="fat_snf_formula",
-        flat_rate=40.0,
-        base_rate=41.0,
-        base_fat=4.0,
-        base_snf=8.5,
-        fat_rate_step=0.45,
-        snf_rate_step=0.30,
-        min_fat=2.0,
-        max_fat=12.0,
-        min_snf=5.0,
-        max_snf=12.0,
-        min_rate=20.0,
-        max_rate=80.0,
-        effective_date=datetime.date.today(),
-        is_active=True
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No milk rate rule is configured for your cooperative. An admin must create one under Rates."
     )
-    db.add(new_rule)
-    db.commit()
-    db.refresh(new_rule)
-    return new_rule
 
 
 @router.get("/current", response_model=schemas.MilkRateRuleResponse)
@@ -138,6 +117,11 @@ def create_rate_rule(
     Supports either flat rate or quality formula with custom steps and bounds.
     """
     # Close off any existing active rule that starts before this one
+    if data.effective_to and data.effective_to < data.effective_date:
+        raise HTTPException(status_code=422, detail="Effective-to date cannot be before the effective date.")
+    if data.min_rate is not None and data.max_rate is not None and data.min_rate > data.max_rate:
+        raise HTTPException(status_code=422, detail="Minimum rate cannot exceed maximum rate.")
+
     prev_rules = db.query(models.MilkRateRule).filter(
         models.MilkRateRule.cooperative_id == admin.cooperative_id,
         models.MilkRateRule.is_active == True,

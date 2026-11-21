@@ -30,13 +30,18 @@ def mark_notification_read(
     payload: dict = Depends(get_current_user_payload),
     db: Session = Depends(get_db)
 ):
-    notif = db.query(models.Notification).filter(
+    query = db.query(models.Notification).filter(
         models.Notification.id == notification_id,
         models.Notification.cooperative_id == payload.get("cooperative_id")
-    ).first()
-    if notif:
-        notif.is_read = True
-        db.commit()
+    )
+    if payload.get("role") == "farmer":
+        # Farmers may only touch their own notifications.
+        query = query.filter(models.Notification.farmer_id == payload.get("user_id"))
+    notif = query.first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notification not found.")
+    notif.is_read = True
+    db.commit()
     return {"status": "success"}
 
 @router.post("/read-all")
@@ -49,8 +54,9 @@ def mark_all_read(
 
     query = db.query(models.Notification).filter(models.Notification.cooperative_id == coop_id)
     if role == "farmer":
+        # Broadcast rows (farmer_id NULL) share one is_read flag, so never bulk-update them for a single farmer.
         query = query.filter(models.Notification.farmer_id == payload.get("user_id"))
 
-    query.update({"is_read": True})
+    query.update({"is_read": True}, synchronize_session=False)
     db.commit()
     return {"status": "success"}

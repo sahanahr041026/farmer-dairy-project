@@ -33,7 +33,7 @@ def get_settlements(
 
     result = []
     for s in settlements:
-        resp = schemas.PaymentSettlementResponse.from_orm(s)
+        resp = schemas.PaymentSettlementResponse.model_validate(s)
         resp.farmer_name = s.farmer.full_name if s.farmer else None
         resp.farmer_uid = s.farmer.farmer_uid if s.farmer else None
         result.append(resp)
@@ -57,12 +57,16 @@ def create_settlement(
     if not farmer:
         raise HTTPException(status_code=404, detail="Farmer not found.")
 
-    # Find pending collections in range
+    if data.period_start > data.period_end:
+        raise HTTPException(status_code=422, detail="Period start cannot be after period end.")
+
+    # Find pending (not yet approved or settled) collections in range
     collections = db.query(models.MilkCollection).filter(
+        models.MilkCollection.cooperative_id == admin.cooperative_id,
         models.MilkCollection.farmer_id == farmer.id,
         models.MilkCollection.collection_date >= data.period_start,
         models.MilkCollection.collection_date <= data.period_end,
-        models.MilkCollection.payment_status != "settled"
+        models.MilkCollection.payment_status == "pending"
     ).all()
 
     if not collections:
@@ -107,7 +111,7 @@ def create_settlement(
     db.commit()
     db.refresh(settlement)
 
-    resp = schemas.PaymentSettlementResponse.from_orm(settlement)
+    resp = schemas.PaymentSettlementResponse.model_validate(settlement)
     resp.farmer_name = farmer.full_name
     resp.farmer_uid = farmer.farmer_uid
     return resp
@@ -127,45 +131,46 @@ def update_settlement_status(
     if not settlement:
         raise HTTPException(status_code=404, detail="Settlement not found.")
 
-    settlement.status = data.status
-    if data.paid_amount is not None:
-        settlement.paid_amount = data.paid_amount
-    else:
-        settlement.paid_amount = settlement.approved_amount
+    if settlement.status == "completed":
+        raise HTTPException(status_code=409, detail="Settlement is already completed and cannot be modified.")
+    if data.status == settlement.status:
+        raise HTTPException(status_code=409, detail=f"Settlement is already '{settlement.status}'.")
+    if data.status != "completed":
+        # Only forward transition supported: approved -> completed.
+        raise HTTPException(status_code=422, detail="Settlements can only be moved to 'completed'.")
 
+    paid = data.paid_amount if data.paid_amount is not None else settlement.approved_amount
+    if paid > settlement.approved_amount + 0.005:
+        raise HTTPException(status_code=422, detail="Paid amount cannot exceed the approved amount.")
+
+    settlement.status = "completed"
+    settlement.paid_amount = round(paid, 2)
     if data.reference_no:
         settlement.reference_no = data.reference_no
-    if data.payment_date:
-        settlement.payment_date = data.payment_date
-    elif data.status == "completed" and not settlement.payment_date:
-        settlement.payment_date = datetime.date.today()
+    settlement.payment_date = data.payment_date or settlement.payment_date or datetime.date.today()
 
-    # If completed, update all milk collections within this period to settled
-    if data.status == "completed":
-        db.query(models.MilkCollection).filter(
-            models.MilkCollection.farmer_id == settlement.farmer_id,
-            models.MilkCollection.collection_date >= settlement.period_start,
-            models.MilkCollection.collection_date <= settlement.period_end
-        ).update({"payment_status": "settled"})
+    # Settle only the collections that were linked to THIS settlement.
+    db.query(models.MilkCollection).filter(
+        models.MilkCollection.settlement_id == settlement.id,
+        models.MilkCollection.cooperative_id == admin.cooperative_id
+    ).update({"payment_status": "settled"}, synchronize_session=False)
 
-        # Notification for farmer
-        farmer = settlement.farmer
-        if farmer:
-            notif = models.Notification(
-                cooperative_id=admin.cooperative_id,
-                farmer_id=farmer.id,
-                title="Payment Settled",
-                title_kn="ಪಾವತಿ ಜಮೆಯಾಗಿದೆ",
-                message=f"₹{settlement.paid_amount:.2f} paid via {settlement.payment_mode} (Ref: {settlement.reference_no or 'N/A'}). Check your bank account.",
-                message_kn=f"₹{settlement.paid_amount:.2f} ಮೊತ್ತವು {settlement.payment_mode} ಮೂಲಕ ಜಮೆಯಾಗಿದೆ (ಉಲ್ಲೇಖ: {settlement.reference_no or 'N/A'}).",
-                category="payment"
-            )
-            db.add(notif)
+    farmer = settlement.farmer
+    if farmer:
+        db.add(models.Notification(
+            cooperative_id=admin.cooperative_id,
+            farmer_id=farmer.id,
+            title="Payment Settled",
+            title_kn="ಪಾವತಿ ಜಮೆಯಾಗಿದೆ",
+            message=f"₹{settlement.paid_amount:.2f} paid via {settlement.payment_mode} (Ref: {settlement.reference_no or 'N/A'}). Check your bank account.",
+            message_kn=f"₹{settlement.paid_amount:.2f} ಮೊತ್ತವು {settlement.payment_mode} ಮೂಲಕ ಜಮೆಯಾಗಿದೆ (ಉಲ್ಲೇಖ: {settlement.reference_no or 'N/A'}).",
+            category="payment"
+        ))
 
     db.commit()
     db.refresh(settlement)
 
-    resp = schemas.PaymentSettlementResponse.from_orm(settlement)
+    resp = schemas.PaymentSettlementResponse.model_validate(settlement)
     resp.farmer_name = settlement.farmer.full_name if settlement.farmer else None
     resp.farmer_uid = settlement.farmer.farmer_uid if settlement.farmer else None
     return resp

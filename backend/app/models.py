@@ -1,7 +1,8 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.timeutil import utcnow
 
 class Cooperative(Base):
     __tablename__ = "cooperatives"
@@ -17,7 +18,7 @@ class Cooperative(Base):
     vet_doctor_name = Column(String(150), nullable=True)
     vet_contact_phone = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     admins = relationship("AdminUser", back_populates="cooperative", cascade="all, delete-orphan")
@@ -45,7 +46,7 @@ class AdminUser(Base):
     full_name = Column(String(150), nullable=False)
     role = Column(String(50), default="admin") # admin, supervisor
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="admins")
 
@@ -64,7 +65,7 @@ class Farmer(Base):
     ifsc_code = Column(String(20), nullable=True)
     is_active = Column(Boolean, default=True)
     sms_enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     # Relationships
     cooperative = relationship("Cooperative", back_populates="farmers")
@@ -106,7 +107,7 @@ class Cattle(Base):
     milking_status = Column(String(50), default="Milking") # Milking, Dry, Pregnant, Heifer
     daily_yield_estimate = Column(Float, default=0.0)
     health_notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="cattle")
     farmer = relationship("Farmer", back_populates="cattle")
@@ -130,8 +131,8 @@ class CattleReminder(Base):
     next_due_date = Column(Date, nullable=True)
     veterinarian_notes = Column(Text, nullable=True)
     guidance = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="reminders")
     farmer = relationship("Farmer", back_populates="reminders")
@@ -162,8 +163,8 @@ class MilkRateRule(Base):
     effective_to = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
     created_by_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="rate_rules")
     creator = relationship("AdminUser")
@@ -190,13 +191,17 @@ class MilkCollection(Base):
     recorded_by_admin_id = Column(Integer, ForeignKey("admin_users.id"), nullable=True)
     correction_reason = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="collections")
     farmer = relationship("Farmer", back_populates="collections")
     rate_rule = relationship("MilkRateRule")
     audits = relationship("MilkRecordAudit", back_populates="collection", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        UniqueConstraint("farmer_id", "collection_date", "session", name="uq_milk_farmer_date_session"),
+    )
 
 
 class MilkRecordAudit(Base):
@@ -216,7 +221,7 @@ class MilkRecordAudit(Base):
     previous_amount = Column(Float, nullable=False)
     new_amount = Column(Float, nullable=False)
     reason = Column(String(255), nullable=False)
-    corrected_at = Column(DateTime, default=datetime.datetime.utcnow)
+    corrected_at = Column(DateTime, default=utcnow)
 
     collection = relationship("MilkCollection", back_populates="audits")
     admin = relationship("AdminUser")
@@ -238,7 +243,7 @@ class PaymentSettlement(Base):
     reference_no = Column(String(100), nullable=True)
     payment_date = Column(Date, nullable=True)
     status = Column(String(30), default="pending") # pending, approved, completed
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="settlements")
     farmer = relationship("Farmer", back_populates="settlements")
@@ -256,7 +261,7 @@ class Notification(Base):
     message_kn = Column(Text, nullable=True)
     category = Column(String(50), default="milk") # milk, payment, cattle, announcement
     is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="notifications")
     farmer = relationship("Farmer", back_populates="notifications")
@@ -276,7 +281,7 @@ class SMSCampaign(Base):
     recipient_count = Column(Integer, default=0)
     is_mock_delivery = Column(Boolean, default=True)
     delivery_status = Column(String(50), default="Simulated Delivered")
-    sent_at = Column(DateTime, default=datetime.datetime.utcnow)
+    sent_at = Column(DateTime, default=utcnow)
     notes = Column(Text, nullable=True)
 
     cooperative = relationship("Cooperative", back_populates="sms_campaigns")
@@ -291,7 +296,7 @@ class CattleRequest(Base):
     request_type = Column(String(50), nullable=False) # new_cattle, correction, health_report
     details = Column(Text, nullable=False)
     status = Column(String(30), default="pending") # pending, approved, rejected
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 
 class Announcement(Base):
@@ -314,8 +319,8 @@ class Announcement(Base):
     sms_notify = Column(Boolean, default=False)
     official_link = Column(String(255), nullable=True)
     contact_info = Column(String(150), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="announcements")
     admin = relationship("AdminUser")
@@ -343,8 +348,8 @@ class SMSNotificationJob(Base):
     is_mock = Column(Boolean, default=True)
     scheduled_at = Column(DateTime, nullable=True)
     sent_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="sms_jobs")
     campaign = relationship("SMSCampaign")
@@ -364,7 +369,7 @@ class PassbookDownloadAudit(Base):
     record_count = Column(Integer, default=0)
     total_milk_value = Column(Float, default=0.0)
     reference_number = Column(String(100), nullable=False)
-    generated_at = Column(DateTime, default=datetime.datetime.utcnow)
+    generated_at = Column(DateTime, default=utcnow)
 
     cooperative = relationship("Cooperative", back_populates="passbook_audits")
     farmer = relationship("Farmer", back_populates="passbook_audits")

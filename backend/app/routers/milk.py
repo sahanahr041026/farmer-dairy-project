@@ -2,11 +2,12 @@ import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin, get_current_user_payload
 from app.routers.rates import compute_rate, resolve_rate_rule
+from app.timeutil import utcnow
 
 router = APIRouter(prefix="/milk", tags=["Milk Collection Management"])
 
@@ -19,8 +20,8 @@ def get_collections(
     session: Optional[str] = None,
     record_status: Optional[str] = None,
     payment_status: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     payload: dict = Depends(get_current_user_payload),
     db: Session = Depends(get_db)
 ):
@@ -79,10 +80,10 @@ def get_collections(
 
     result = []
     for c in collections:
-        resp = schemas.MilkCollectionResponse.from_orm(c)
+        resp = schemas.MilkCollectionResponse.model_validate(c)
         resp.farmer_name = c.farmer.full_name if c.farmer else None
         resp.farmer_uid = c.farmer.farmer_uid if c.farmer else None
-        resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in c.audits]
+        resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in c.audits]
         result.append(resp)
 
     return result
@@ -112,6 +113,10 @@ def get_collections_summary(
         user_farmer_id = payload.get("user_id")
         query = query.filter(models.MilkCollection.farmer_id == user_farmer_id)
     elif farmer_id:
+        if not db.query(models.Farmer.id).filter(
+            models.Farmer.id == farmer_id, models.Farmer.cooperative_id == coop_id
+        ).first():
+            raise HTTPException(status_code=404, detail="Farmer not found in your cooperative.")
         query = query.filter(models.MilkCollection.farmer_id == farmer_id)
 
     if start_date:
@@ -121,17 +126,22 @@ def get_collections_summary(
     if session:
         query = query.filter(models.MilkCollection.session == session.lower())
 
-    records = query.all()
-
-    total_litres = sum(r.quantity_litres for r in records)
-    total_amount = sum(r.total_amount for r in records)
-    morning_litres = sum(r.quantity_litres for r in records if r.session == "morning")
-    evening_litres = sum(r.quantity_litres for r in records if r.session == "evening")
+    MC = models.MilkCollection
+    agg = query.with_entities(
+        func.coalesce(func.sum(MC.quantity_litres), 0.0),
+        func.coalesce(func.sum(MC.total_amount), 0.0),
+        func.count(MC.id),
+        func.coalesce(func.sum(case((MC.session == "morning", MC.quantity_litres), else_=0.0)), 0.0),
+        func.coalesce(func.sum(case((MC.session == "evening", MC.quantity_litres), else_=0.0)), 0.0),
+    ).one()
+    total_litres, total_amount, total_records, morning_litres, evening_litres = (
+        float(agg[0]), float(agg[1]), int(agg[2]), float(agg[3]), float(agg[4])
+    )
 
     return schemas.MilkHistorySummaryResponse(
         total_litres=round(total_litres, 1),
         total_amount=round(total_amount, 2),
-        total_records=len(records),
+        total_records=total_records,
         morning_litres=round(morning_litres, 1),
         evening_litres=round(evening_litres, 1)
     )
@@ -156,15 +166,17 @@ def get_today_collection_summary(
         user_farmer_id = payload.get("user_id")
         query = query.filter(models.MilkCollection.farmer_id == user_farmer_id)
 
-    records = query.all()
-
-    morning_records = [r for r in records if r.session == "morning"]
-    evening_records = [r for r in records if r.session == "evening"]
-
-    morning_litres = sum(r.quantity_litres for r in morning_records)
-    evening_litres = sum(r.quantity_litres for r in evening_records)
+    MC = models.MilkCollection
+    agg = query.with_entities(
+        func.coalesce(func.sum(case((MC.session == "morning", MC.quantity_litres), else_=0.0)), 0.0),
+        func.coalesce(func.sum(case((MC.session == "evening", MC.quantity_litres), else_=0.0)), 0.0),
+        func.coalesce(func.sum(MC.total_amount), 0.0),
+        func.count(MC.id),
+    ).one()
+    morning_litres, evening_litres, total_amount, total_entries = (
+        float(agg[0]), float(agg[1]), float(agg[2]), int(agg[3])
+    )
     total_litres = morning_litres + evening_litres
-    total_amount = sum(r.total_amount for r in records)
 
     return {
         "date": today.isoformat(),
@@ -172,7 +184,7 @@ def get_today_collection_summary(
         "morning_litres": round(morning_litres, 1),
         "evening_litres": round(evening_litres, 1),
         "total_amount": round(total_amount, 2),
-        "total_entries": len(records)
+        "total_entries": total_entries
     }
 
 @router.get("/{collection_id}", response_model=schemas.MilkCollectionResponse)
@@ -199,10 +211,10 @@ def get_single_collection(
     if role == "farmer" and collection.farmer_id != payload.get("user_id"):
         raise HTTPException(status_code=403, detail="Access denied. You can only view your own records.")
 
-    resp = schemas.MilkCollectionResponse.from_orm(collection)
+    resp = schemas.MilkCollectionResponse.model_validate(collection)
     resp.farmer_name = collection.farmer.full_name if collection.farmer else None
     resp.farmer_uid = collection.farmer.farmer_uid if collection.farmer else None
-    resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in collection.audits]
+    resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in collection.audits]
     return resp
 
 
@@ -238,9 +250,8 @@ def record_milk_collection(
             detail="Session must be either 'morning' or 'evening'."
         )
 
-    # 3. Collection date validation (cannot be arbitrarily in the future)
-    tomorrow = datetime.date.today() + datetime.timedelta(days=1)
-    if data.collection_date > tomorrow:
+    # 3. Collection date validation (today or earlier)
+    if data.collection_date > datetime.date.today():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Collection date cannot be in the future."
@@ -261,9 +272,6 @@ def record_milk_collection(
         )
 
     # 5. Verify farmer belongs to admin's cooperative
-    if data.collection_date > datetime.date.today() + datetime.timedelta(days=1):
-        raise HTTPException(status_code=400, detail="Collection date cannot be in the future.")
-
     farmer = db.query(models.Farmer).filter(
         models.Farmer.id == data.farmer_id,
         models.Farmer.cooperative_id == admin.cooperative_id
@@ -282,81 +290,54 @@ def record_milk_collection(
 
     # 6. Duplicate check
     existing = db.query(models.MilkCollection).filter(
+        models.MilkCollection.cooperative_id == admin.cooperative_id,
         models.MilkCollection.farmer_id == data.farmer_id,
         models.MilkCollection.collection_date == data.collection_date,
         models.MilkCollection.session == norm_session
     ).first()
 
-    if existing and not allow_duplicate and not overwrite:
+    replace_existing = bool(existing and (allow_duplicate or overwrite))
+    if existing and not replace_existing:
         session_label = "Morning" if norm_session == "morning" else "Evening"
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Duplicate entry: A record already exists for {farmer.full_name} on {data.collection_date} ({session_label} session). Duplicate attempts are prevented to protect ledger integrity."
         )
 
-    # Active rate rule
-    rule = db.query(models.MilkRateRule).filter(
-        models.MilkRateRule.cooperative_id == admin.cooperative_id,
-        models.MilkRateRule.is_active == True
-    ).first()
+    # Rate rule effective on the collection date (same resolver used by corrections)
+    rule = resolve_rate_rule(db, admin.cooperative_id, data.collection_date)
 
-    if not rule:
-        rule = models.MilkRateRule(base_rate=41.0, base_fat=4.0, base_snf=8.5, fat_rate_step=0.45, snf_rate_step=0.30)
-
-    fat = data.fat_percentage if data.fat_percentage is not None else rule.base_fat
-    snf = data.snf_percentage if data.snf_percentage is not None else rule.base_snf
+    calc_fat = fat if fat is not None else rule.base_fat
+    calc_snf = snf if snf is not None else rule.base_snf
 
     # Authoritative server-side calculation
     rate = compute_rate(rule, calc_fat, calc_snf)
     amount = round(data.quantity_litres * rate, 2)
 
-    if existing and overwrite:
-        audit = models.MilkRecordAudit(
+    if replace_existing:
+        if existing.payment_status in ("approved", "settled"):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This record is part of an approved/settled payment and cannot be overwritten."
+            )
+        db.add(models.MilkRecordAudit(
             collection_id=existing.id,
             admin_id=admin.id,
             previous_quantity=existing.quantity_litres,
             new_quantity=data.quantity_litres,
             previous_fat=existing.fat_percentage,
-            new_fat=data.fat_percentage,
+            new_fat=fat,
             previous_snf=existing.snf_percentage,
-            new_snf=data.snf_percentage,
-            previous_amount=existing.total_amount,
-            new_amount=amount,
-            reason="Confirmed overwrite of duplicate session entry"
-        )
-        db.add(audit)
-        existing.quantity_litres = data.quantity_litres
-        existing.fat_percentage = data.fat_percentage
-        existing.snf_percentage = data.snf_percentage
-        existing.rate_per_litre = rate
-        existing.total_amount = amount
-        existing.recorded_by_admin_id = admin.id
-        if data.notes:
-            existing.notes = data.notes
-        collection = existing
-    else:
-        # 7. If existing record exists and allow_duplicate was explicitly requested, update with audit
-    if existing and allow_duplicate:
-        audit = models.MilkRecordAudit(
-            collection_id=existing.id,
-            admin_id=admin.id,
-            previous_quantity=existing.quantity_litres,
-            new_quantity=data.quantity_litres,
-            previous_fat=existing.fat_percentage,
-            new_fat=data.fat_percentage,
-            previous_snf=existing.snf_percentage,
-            new_snf=data.snf_percentage,
+            new_snf=snf,
             previous_rate=existing.rate_per_litre,
             new_rate=rate,
             previous_amount=existing.total_amount,
             new_amount=amount,
             reason="Confirmed overwrite of existing session record"
-        )
-        db.add(audit)
-
+        ))
         existing.quantity_litres = data.quantity_litres
-        existing.fat_percentage = data.fat_percentage
-        existing.snf_percentage = data.snf_percentage
+        existing.fat_percentage = fat
+        existing.snf_percentage = snf
         existing.rate_per_litre = rate
         existing.total_amount = amount
         existing.rate_rule_id = rule.id
@@ -364,30 +345,29 @@ def record_milk_collection(
         existing.record_status = "corrected"
         existing.payment_status = "pending"
         existing.correction_reason = "Admin overwrite of duplicate session"
+        existing.recorded_by_admin_id = admin.id
         if data.notes:
             existing.notes = data.notes
-
         collection = existing
     else:
-        # Create brand new record
         collection = models.MilkCollection(
-                cooperative_id=admin.cooperative_id,
-                farmer_id=data.farmer_id,
-                collection_date=data.collection_date,
-                session=norm_session,
-                quantity_litres=data.quantity_litres,
-                fat_percentage=data.fat_percentage,
-                snf_percentage=data.snf_percentage,
-                rate_per_litre=rate,
-                total_amount=amount,
-                rate_rule_id=rule.id,
+            cooperative_id=admin.cooperative_id,
+            farmer_id=data.farmer_id,
+            collection_date=data.collection_date,
+            session=norm_session,
+            quantity_litres=data.quantity_litres,
+            fat_percentage=fat,
+            snf_percentage=snf,
+            rate_per_litre=rate,
+            total_amount=amount,
+            rate_rule_id=rule.id,
             calculation_method=rule.calculation_method,
             record_status="recorded",
             payment_status="pending",
-                recorded_by_admin_id=admin.id,
-                notes=data.notes
-            )
-            db.add(collection)
+            recorded_by_admin_id=admin.id,
+            notes=data.notes
+        )
+        db.add(collection)
 
     db.flush()
 
@@ -397,8 +377,8 @@ def record_milk_collection(
     notif = models.Notification(
         cooperative_id=admin.cooperative_id,
         farmer_id=farmer.id,
-        title="Milk Recorded" if not (existing and overwrite) else "Milk Record Updated",
-        title_kn="ಹಾಲು ಸಂಗ್ರಹ ದಾಖಲಾಗಿದೆ" if not (existing and overwrite) else "ಹಾಲು ದಾಖಲೆ ನವೀಕರಿಸಲಾಗಿದೆ",
+        title="Milk Recorded" if not replace_existing else "Milk Record Updated",
+        title_kn="ಹಾಲು ಸಂಗ್ರಹ ದಾಖಲಾಗಿದೆ" if not replace_existing else "ಹಾಲು ದಾಖಲೆ ನವೀಕರಿಸಲಾಗಿದೆ",
         message=f"{data.quantity_litres:.1f}L recorded for {data.collection_date} ({session_en}). Rate: ₹{rate:.2f}/L, Milk Value: ₹{amount:.2f}.",
         message_kn=f"{data.collection_date} ({session_kn}) ಕ್ಕೆ {data.quantity_litres:.1f} ಲೀಟರ್ ಹಾಲು ದಾಖಲಾಗಿದೆ. ದರ: ₹{rate:.2f}/ಲೀ, ಮೌಲ್ಯ: ₹{amount:.2f}.",
         category="milk"
@@ -408,10 +388,10 @@ def record_milk_collection(
     db.commit()
     db.refresh(collection)
 
-    resp = schemas.MilkCollectionResponse.from_orm(collection)
+    resp = schemas.MilkCollectionResponse.model_validate(collection)
     resp.farmer_name = farmer.full_name
     resp.farmer_uid = farmer.farmer_uid
-    resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in collection.audits]
+    resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in collection.audits]
     return resp
 
 
@@ -448,6 +428,12 @@ def correct_milk_collection(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Milk collection record not found in your cooperative."
+        )
+
+    if collection.payment_status in ("approved", "settled"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This record is part of an approved/settled payment and can no longer be corrected."
         )
 
     # Resolve rule for collection date
@@ -500,7 +486,7 @@ def correct_milk_collection(
     collection.correction_reason = data.reason.strip()
     if data.notes:
         collection.notes = data.notes
-    collection.updated_at = datetime.datetime.utcnow()
+    collection.updated_at = utcnow()
 
     # Create farmer notification regarding correction
     farmer = collection.farmer
@@ -521,8 +507,8 @@ def correct_milk_collection(
     db.commit()
     db.refresh(collection)
 
-    resp = schemas.MilkCollectionResponse.from_orm(collection)
+    resp = schemas.MilkCollectionResponse.model_validate(collection)
     resp.farmer_name = farmer.full_name if farmer else None
     resp.farmer_uid = farmer.farmer_uid if farmer else None
-    resp.audits = [schemas.MilkAuditResponse.from_orm(a) for a in collection.audits]
+    resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in collection.audits]
     return resp

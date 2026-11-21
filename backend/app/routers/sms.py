@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin
+from app.timeutil import utcnow
 from app.sms_service import (
     SMSService,
     mask_phone_number,
@@ -54,7 +55,7 @@ def get_notification_jobs(
 
     results = []
     for j in jobs:
-        resp = schemas.SMSJobResponse.from_orm(j)
+        resp = schemas.SMSJobResponse.model_validate(j)
         resp.phone_number = mask_phone_number(j.phone_number)
         results.append(resp)
 
@@ -203,7 +204,7 @@ def send_campaign(
             is_mock=is_mock,
             idempotency_key=idempotency_key,
             provider_ref=f"SIM-{f.id}" if is_mock else f"DLT-{f.id}",
-            sent_at=datetime.datetime.utcnow()
+            sent_at=utcnow()
         )
         db.add(job)
 
@@ -251,13 +252,13 @@ def retry_sms_job(
     job.status = res.get("status", "submitted")
     job.provider_ref = res.get("provider_ref")
     job.error_message = res.get("error_message")
-    job.sent_at = datetime.datetime.utcnow()
-    job.updated_at = datetime.datetime.utcnow()
+    job.sent_at = utcnow()
+    job.updated_at = utcnow()
 
     db.commit()
     db.refresh(job)
 
-    resp = schemas.SMSJobResponse.from_orm(job)
+    resp = schemas.SMSJobResponse.model_validate(job)
     resp.phone_number = mask_phone_number(job.phone_number)
     return resp
 
@@ -280,11 +281,11 @@ def cancel_sms_job(
         raise HTTPException(status_code=400, detail="Cannot cancel a job that is already sent.")
 
     job.status = "cancelled"
-    job.updated_at = datetime.datetime.utcnow()
+    job.updated_at = utcnow()
     db.commit()
     db.refresh(job)
 
-    resp = schemas.SMSJobResponse.from_orm(job)
+    resp = schemas.SMSJobResponse.model_validate(job)
     resp.phone_number = mask_phone_number(job.phone_number)
     return resp
 
@@ -336,6 +337,6 @@ def dispatch_vaccination_sms(
             is_mock=True
         )
 
-    resp = schemas.SMSJobResponse.from_orm(job)
+    resp = schemas.SMSJobResponse.model_validate(job)
     resp.phone_number = mask_phone_number(job.phone_number)
     return resp

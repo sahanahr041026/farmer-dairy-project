@@ -2,7 +2,7 @@ import datetime
 import csv
 import io
 from typing import Optional
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
@@ -25,23 +25,22 @@ def get_admin_dashboard_summary(
         models.Farmer.is_active == True
     ).scalar() or 0
 
-    # Today's milk
-    today_records = db.query(models.MilkCollection).filter(
-        models.MilkCollection.cooperative_id == coop_id,
-        models.MilkCollection.collection_date == today
-    ).all()
-    today_litres = sum(r.quantity_litres for r in today_records)
-    today_morning = sum(r.quantity_litres for r in today_records if r.session == "morning")
-    today_evening = sum(r.quantity_litres for r in today_records if r.session == "evening")
-    today_amount = sum(r.total_amount for r in today_records)
+    MC = models.MilkCollection
 
-    # Monthly milk
-    monthly_records = db.query(models.MilkCollection).filter(
-        models.MilkCollection.cooperative_id == coop_id,
-        models.MilkCollection.collection_date >= start_of_month
-    ).all()
-    monthly_litres = sum(r.quantity_litres for r in monthly_records)
-    monthly_amount = sum(r.total_amount for r in monthly_records)
+    def _totals(*conditions):
+        row = db.query(
+            func.coalesce(func.sum(MC.quantity_litres), 0.0),
+            func.coalesce(func.sum(MC.total_amount), 0.0),
+            func.count(MC.id),
+        ).filter(MC.cooperative_id == coop_id, *conditions).one()
+        return float(row[0]), float(row[1]), int(row[2])
+
+    today_litres, today_amount, today_count = _totals(MC.collection_date == today)
+    today_morning = float(db.query(func.coalesce(func.sum(MC.quantity_litres), 0.0)).filter(
+        MC.cooperative_id == coop_id, MC.collection_date == today, MC.session == "morning").scalar())
+    today_evening = float(db.query(func.coalesce(func.sum(MC.quantity_litres), 0.0)).filter(
+        MC.cooperative_id == coop_id, MC.collection_date == today, MC.session == "evening").scalar())
+    monthly_litres, monthly_amount, _ = _totals(MC.collection_date >= start_of_month)
 
     # Pending & Completed settlements
     pending_payouts = db.query(func.sum(models.MilkCollection.total_amount)).filter(
@@ -69,7 +68,7 @@ def get_admin_dashboard_summary(
             "morning_litres": round(today_morning, 1),
             "evening_litres": round(today_evening, 1),
             "amount": round(today_amount, 2),
-            "entries_count": len(today_records)
+            "entries_count": today_count
         },
         "monthly_collection": {
             "total_litres": round(monthly_litres, 1),
@@ -85,7 +84,7 @@ def get_admin_dashboard_summary(
 
 @router.get("/trends")
 def get_collection_trends(
-    days: int = 14,
+    days: int = Query(14, ge=1, le=366),
     admin: models.AdminUser = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -189,6 +188,15 @@ def export_collections_csv(
         models.MilkCollection.collection_date <= end_date
     ).order_by(models.MilkCollection.collection_date.asc(), models.MilkCollection.session.asc()).all()
 
+    if start_date > end_date:
+        raise HTTPException(status_code=422, detail="Start date cannot be after end date.")
+
+    def safe(v):
+        # Prevent CSV/Excel formula injection from user-controlled text (names, villages).
+        if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", chr(9), chr(13)):
+            return "'" + v
+        return v
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -201,9 +209,9 @@ def export_collections_csv(
             r.id,
             r.collection_date.isoformat(),
             r.session,
-            r.farmer.farmer_uid if r.farmer else "",
-            r.farmer.full_name if r.farmer else "",
-            r.farmer.village if r.farmer else "",
+            safe(r.farmer.farmer_uid) if r.farmer else "",
+            safe(r.farmer.full_name) if r.farmer else "",
+            safe(r.farmer.village) if r.farmer else "",
             r.quantity_litres,
             r.fat_percentage if r.fat_percentage is not None else "",
             r.snf_percentage if r.snf_percentage is not None else "",

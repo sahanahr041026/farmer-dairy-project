@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin, get_current_user_payload
+from app.timeutil import utcnow
 
 router = APIRouter(prefix="/cattle", tags=["Cattle Care & Reminders"])
 
@@ -343,7 +344,7 @@ def get_reminders(
                 r.status = "upcoming"
             db.commit()
 
-        resp = schemas.CattleReminderResponse.from_orm(r)
+        resp = schemas.CattleReminderResponse.model_validate(r)
         if r.cattle:
             resp.cattle_name = r.cattle.name
             resp.cattle_tag = r.cattle.tag_number
@@ -397,7 +398,7 @@ def create_reminder(
     db.commit()
     db.refresh(reminder)
 
-    resp = schemas.CattleReminderResponse.from_orm(reminder)
+    resp = schemas.CattleReminderResponse.model_validate(reminder)
     if reminder.cattle:
         resp.cattle_name = reminder.cattle.name
         resp.cattle_tag = reminder.cattle.tag_number
@@ -440,11 +441,11 @@ def update_reminder(
     if data.veterinarian_notes:
         reminder.veterinarian_notes = data.veterinarian_notes
 
-    reminder.updated_at = datetime.datetime.utcnow()
+    reminder.updated_at = utcnow()
     db.commit()
     db.refresh(reminder)
 
-    resp = schemas.CattleReminderResponse.from_orm(reminder)
+    resp = schemas.CattleReminderResponse.model_validate(reminder)
     if reminder.cattle:
         resp.cattle_name = reminder.cattle.name
         resp.cattle_tag = reminder.cattle.tag_number
@@ -487,11 +488,11 @@ def get_cattle_list(
 
     result = []
     for c in cattle_list:
-        resp = schemas.CattleResponse.from_orm(c)
+        resp = schemas.CattleResponse.model_validate(c)
         resp.farmer_name = c.farmer.full_name if c.farmer else None
         # Include reminders
         reminders = db.query(models.CattleReminder).filter(models.CattleReminder.cattle_id == c.id).all()
-        resp.reminders = [schemas.CattleReminderResponse.from_orm(r) for r in reminders]
+        resp.reminders = [schemas.CattleReminderResponse.model_validate(r) for r in reminders]
         result.append(resp)
 
     return result
@@ -562,7 +563,7 @@ def create_cattle(
     db.add(notif)
     db.commit()
 
-    resp = schemas.CattleResponse.from_orm(cattle)
+    resp = schemas.CattleResponse.model_validate(cattle)
     resp.farmer_name = farmer.full_name
     resp.reminders = []
     return resp
@@ -588,10 +589,10 @@ def get_single_cattle(
     if role == "farmer" and cattle.farmer_id != payload.get("user_id"):
         raise HTTPException(status_code=403, detail="Access denied. You can only view your own cattle.")
 
-    resp = schemas.CattleResponse.from_orm(cattle)
+    resp = schemas.CattleResponse.model_validate(cattle)
     resp.farmer_name = cattle.farmer.full_name if cattle.farmer else None
     reminders = db.query(models.CattleReminder).filter(models.CattleReminder.cattle_id == cattle.id).all()
-    resp.reminders = [schemas.CattleReminderResponse.from_orm(r) for r in reminders]
+    resp.reminders = [schemas.CattleReminderResponse.model_validate(r) for r in reminders]
     return resp
 
 @router.put("/{cattle_id}", response_model=schemas.CattleResponse)
@@ -648,10 +649,10 @@ def update_cattle(
     db.commit()
     db.refresh(cattle)
 
-    resp = schemas.CattleResponse.from_orm(cattle)
+    resp = schemas.CattleResponse.model_validate(cattle)
     resp.farmer_name = cattle.farmer.full_name if cattle.farmer else None
     reminders = db.query(models.CattleReminder).filter(models.CattleReminder.cattle_id == cattle.id).all()
-    resp.reminders = [schemas.CattleReminderResponse.from_orm(r) for r in reminders]
+    resp.reminders = [schemas.CattleReminderResponse.model_validate(r) for r in reminders]
     return resp
 
 @router.delete("/{cattle_id}")
