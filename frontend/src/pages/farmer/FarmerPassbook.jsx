@@ -3,8 +3,13 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { t } from '../../i18n';
 import {
-  DownloadIcon, MilkIcon, SunIcon, MoonIcon,
-  AlertTriangleIcon, CheckCircleIcon, CalendarIcon, RefreshCwIcon
+  DownloadIcon,
+  MilkIcon,
+  SunIcon,
+  MoonIcon,
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  RefreshCwIcon
 } from '../../components/Icons';
 
 export function FarmerPassbook() {

@@ -1,9 +1,11 @@
 import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
+from app.money import D, money_sum, q2
 from app.security import get_current_user_payload
 from app.pdf_service import generate_passbook_pdf
 
@@ -39,6 +41,9 @@ def get_passbook(
     if not end_date:
         end_date = today
 
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail="Start date cannot be after end date.")
+
     records_query = db.query(models.MilkCollection).filter(
         models.MilkCollection.farmer_id == farmer.id,
         models.MilkCollection.collection_date >= start_date,
@@ -47,16 +52,30 @@ def get_passbook(
 
     records = records_query.all()
 
-    total_litres = sum(r.quantity_litres for r in records)
-    total_amount = sum(r.total_amount for r in records)
-    paid_amount = sum(r.total_amount for r in records if r.payment_status == "settled")
-    pending_amount = total_amount - paid_amount
+    MC = models.MilkCollection
 
-    valid_fats = [r.fat_percentage for r in records if r.fat_percentage is not None]
-    avg_fat = sum(valid_fats) / len(valid_fats) if valid_fats else 0.0
+    def _aggregate(*conditions):
+        """One SQL round-trip: litres, amount, settled amount, avg fat/snf."""
+        row = db.query(
+            func.coalesce(func.sum(MC.quantity_litres), 0.0),
+            func.coalesce(func.sum(MC.total_amount), 0.0),
+            func.coalesce(func.sum(case((MC.payment_status == "settled", MC.total_amount), else_=0)), 0),
+            func.coalesce(func.avg(MC.fat_percentage), 0.0),
+            func.coalesce(func.avg(MC.snf_percentage), 0.0),
+        ).filter(MC.farmer_id == farmer.id, *conditions).one()
+        return [float(x) for x in row]
 
-    valid_snfs = [r.snf_percentage for r in records if r.snf_percentage is not None]
-    avg_snf = sum(valid_snfs) / len(valid_snfs) if valid_snfs else 0.0
+    total_litres, total_amount, paid_amount, avg_fat, avg_snf = _aggregate(
+        MC.collection_date >= start_date, MC.collection_date <= end_date
+    )
+    pending_amount = q2(D(total_amount) - D(paid_amount))
+
+    today = datetime.date.today()
+    today_litres, today_earnings, _, _, _ = _aggregate(MC.collection_date == today)
+    month_start = today.replace(day=1)
+    month_litres, month_earnings, _, _, _ = _aggregate(
+        MC.collection_date >= month_start, MC.collection_date <= today
+    )
 
     coop = farmer.cooperative
 
@@ -68,24 +87,6 @@ def get_passbook(
         resp.audits = [schemas.MilkAuditResponse.model_validate(a) for a in r.audits]
         record_responses.append(resp)
 
-    # Daily (today) metrics
-    today_records = db.query(models.MilkCollection).filter(
-        models.MilkCollection.farmer_id == farmer.id,
-        models.MilkCollection.collection_date == today
-    ).all()
-    today_litres = sum(r.quantity_litres for r in today_records)
-    today_earnings = sum(r.total_amount for r in today_records)
-
-    # Monthly metrics (first of current month to today)
-    month_start = today.replace(day=1)
-    month_records = db.query(models.MilkCollection).filter(
-        models.MilkCollection.farmer_id == farmer.id,
-        models.MilkCollection.collection_date >= month_start,
-        models.MilkCollection.collection_date <= today
-    ).all()
-    month_litres = sum(r.quantity_litres for r in month_records)
-    month_earnings = sum(r.total_amount for r in month_records)
-
     return schemas.PassbookSummaryResponse(
         farmer_id=farmer.id,
         farmer_name=farmer.full_name,
@@ -95,13 +96,13 @@ def get_passbook(
         total_litres=round(total_litres, 1),
         avg_fat=round(avg_fat, 2),
         avg_snf=round(avg_snf, 2),
-        total_earnings=round(total_amount, 2),
-        paid_amount=round(paid_amount, 2),
-        pending_amount=round(pending_amount, 2),
+        total_earnings=q2(total_amount),
+        paid_amount=q2(paid_amount),
+        pending_amount=pending_amount,
         today_litres=round(today_litres, 1),
-        today_earnings=round(today_earnings, 2),
+        today_earnings=q2(today_earnings),
         month_litres=round(month_litres, 1),
-        month_earnings=round(month_earnings, 2),
+        month_earnings=q2(month_earnings),
         records=record_responses
     )
 
@@ -165,7 +166,7 @@ def download_passbook_pdf(
         period_start=start_date,
         period_end=end_date,
         record_count=len(records),
-        total_milk_value=sum(float(r.total_amount) for r in records),
+        total_milk_value=money_sum(r.total_amount for r in records),
         reference_number=reference_no
     )
     db.add(audit)

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { t } from '../i18n';
-import { MilkIcon, LogOutIcon, BellIcon, ShieldCheckIcon, SpeakerIcon } from './Icons';
+import {} from '../i18n';
+import { MilkIcon, LogOutIcon, ShieldCheckIcon } from './Icons';
 
 export function Navbar() {
   const { user, role, logout, language, setLanguage } = useAuth();
@@ -73,7 +73,7 @@ export function Navbar() {
             }}>
               DairySathi
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            <div className="brand-tagline" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>
               {language === 'kn' ? 'ಹೈನುಗಾರರ ಡಿಜಿಟಲ್ ಮಿತ್ರ' : 'Cattle Care & Dairy Cooperative'}
             </div>
           </div>
@@ -98,9 +98,9 @@ export function Navbar() {
         )}
 
         {/* Right Tools: Connectivity, Language Toggle, Profile/Logout */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="nav-tools" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           {/* Online/Offline status pill */}
-          <div style={{
+          <div className="net-pill" style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: '0.35rem',
@@ -117,13 +117,13 @@ export function Navbar() {
               borderRadius: '50%',
               backgroundColor: isOnline ? 'var(--status-settled)' : 'var(--status-overdue)'
             }}></span>
-            <span>{isOnline ? (language === 'kn' ? 'ಆನ್‌ಲೈನ್' : 'Online') : (language === 'kn' ? 'ಆಫ್‌ಲೈನ್' : 'Offline')}</span>
+            <span className="net-pill-label">{isOnline ? (language === 'kn' ? 'ಆನ್‌ಲೈನ್' : 'Online') : (language === 'kn' ? 'ಆಫ್‌ಲೈನ್' : 'Offline')}</span>
           </div>
 
           {/* Language Switcher */}
           <button
             onClick={toggleLanguage}
-            className="touch-target"
+            className="touch-target lang-toggle"
             style={{
               padding: '0.4rem 0.85rem',
               borderRadius: 'var(--radius-md)',
@@ -150,9 +150,10 @@ export function Navbar() {
               </div>
               <button
                 onClick={handleLogout}
-                className="btn btn-outline touch-target"
+                className="btn btn-outline touch-target logout-btn"
                 style={{ minHeight: 40, padding: '0.4rem 0.85rem', fontSize: '0.85rem' }}
                 title="Log out"
+                aria-label="Log out"
               >
                 <LogOutIcon size={16} />
                 <span className="logout-text">{language === 'kn' ? 'ನಿರ್ಗಮಿಸಿ' : 'Logout'}</span>
@@ -173,6 +174,17 @@ export function Navbar() {
         @media (min-width: 768px) {
           .coop-badge-desktop { display: inline-flex !important; }
           .user-info-desktop { display: block !important; }
+        }
+        /* Phones: the brand, status pill, language toggle and logout cannot all fit with their full
+           labels (the row was ~455px wide and stretched the whole page). Drop the secondary text. */
+        @media (max-width: 479px) {
+          .brand-tagline { display: none; }
+          .net-pill-label { display: none; }
+          .net-pill { padding: 0.35rem !important; }
+          .nav-tools { gap: 0.4rem !important; }
+          .lang-toggle { padding: 0.4rem 0.6rem !important; }
+          .logout-btn { padding: 0.4rem 0.6rem !important; }
+          .logout-text { display: none; }
         }
       `}</style>
     </header>

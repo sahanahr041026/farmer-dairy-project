@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.database import get_db
 from app import models, schemas
+from app.money import D, q2, clamp, calc_amount
 from app.security import get_current_admin, get_current_user_payload
 
 router = APIRouter(prefix="/rates", tags=["Milk Rate Management"])
@@ -25,22 +26,21 @@ def compute_rate(rule: models.MilkRateRule, fat: Optional[float] = None, snf: Op
 
     if calc_method == "flat_rate":
         flat = rule.flat_rate if rule.flat_rate is not None else rule.base_rate
-        return round(float(flat), 2)
+        return q2(flat)
 
-    # Quality formula calculation
-    f = fat if fat is not None else rule.base_fat
-    s = snf if snf is not None else rule.base_snf
+    # Quality formula calculation (exact decimal arithmetic)
+    f = D(fat if fat is not None else rule.base_fat)
+    s_ = D(snf if snf is not None else rule.base_snf)
 
-    fat_diff = f - rule.base_fat
-    snf_diff = s - rule.base_snf
-
-    rate = rule.base_rate + (fat_diff * 10.0 * rule.fat_rate_step) + (snf_diff * 10.0 * rule.snf_rate_step)
+    rate = (
+        D(rule.base_rate)
+        + (f - D(rule.base_fat)) * 10 * D(rule.fat_rate_step)
+        + (s_ - D(rule.base_snf)) * 10 * D(rule.snf_rate_step)
+    )
 
     min_r = rule.min_rate if rule.min_rate is not None else 20.0
     max_r = rule.max_rate if rule.max_rate is not None else 80.0
-
-    clamped_rate = max(min_r, min(rate, max_r))
-    return round(clamped_rate, 2)
+    return q2(clamp(rate, min_r, max_r))
 
 
 def resolve_rate_rule(db: Session, cooperative_id: int, target_date: datetime.date) -> models.MilkRateRule:
@@ -187,7 +187,7 @@ def calculate_rate_preview(
     rule = resolve_rate_rule(db, coop_id, target_date)
 
     rate = compute_rate(rule, fat, snf)
-    amount = round(quantity * rate, 2)
+    amount = calc_amount(quantity, rate)
 
     return {
         "quantity_litres": round(quantity, 2),

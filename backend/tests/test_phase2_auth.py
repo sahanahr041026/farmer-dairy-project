@@ -171,6 +171,7 @@ def run_phase2_tests():
     # -------------------------------------------------------------
     print("\n[TEST 4] Protected Routes & Role Authorization:")
     # 4a. No token
+    client.cookies.clear()  # drop the session cookie set by earlier logins
     res_no_token = client.get("/api/auth/me")
     assert res_no_token.status_code == 401
     print("  -> PASSED: Unauthenticated access blocked on /api/auth/me.")

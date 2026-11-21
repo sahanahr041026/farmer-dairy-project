@@ -6,6 +6,7 @@ from sqlalchemy import case, func, or_
 from app.database import get_db
 from app import models, schemas
 from app.security import get_current_admin, get_current_user_payload
+from app.money import calc_amount, q2
 from app.routers.rates import compute_rate, resolve_rate_rule
 from app.timeutil import utcnow
 
@@ -140,7 +141,7 @@ def get_collections_summary(
 
     return schemas.MilkHistorySummaryResponse(
         total_litres=round(total_litres, 1),
-        total_amount=round(total_amount, 2),
+        total_amount=q2(total_amount),
         total_records=total_records,
         morning_litres=round(morning_litres, 1),
         evening_litres=round(evening_litres, 1)
@@ -183,7 +184,7 @@ def get_today_collection_summary(
         "total_litres": round(total_litres, 1),
         "morning_litres": round(morning_litres, 1),
         "evening_litres": round(evening_litres, 1),
-        "total_amount": round(total_amount, 2),
+        "total_amount": q2(total_amount),
         "total_entries": total_entries
     }
 
@@ -312,7 +313,7 @@ def record_milk_collection(
 
     # Authoritative server-side calculation
     rate = compute_rate(rule, calc_fat, calc_snf)
-    amount = round(data.quantity_litres * rate, 2)
+    amount = calc_amount(data.quantity_litres, rate)
 
     if replace_existing:
         if existing.payment_status in ("approved", "settled"):
@@ -454,7 +455,7 @@ def correct_milk_collection(
         )
 
     new_rate = compute_rate(rule, fat, snf)
-    new_amount = round(data.quantity_litres * new_rate, 2)
+    new_amount = calc_amount(data.quantity_litres, new_rate)
 
     # Record Audit Log
     audit = models.MilkRecordAudit(

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app import models, schemas
+from app.money import money_sum, q2
 from app.security import get_current_admin, get_current_user_payload
 
 router = APIRouter(prefix="/payments", tags=["Payments & Settlements"])
@@ -73,7 +74,7 @@ def create_settlement(
         raise HTTPException(status_code=400, detail="No unsettled milk records found for the selected date range.")
 
     total_litres = sum(c.quantity_litres for c in collections)
-    calculated_amount = sum(c.total_amount for c in collections)
+    calculated_amount = money_sum(c.total_amount for c in collections)
 
     settlement = models.PaymentSettlement(
         cooperative_id=admin.cooperative_id,
@@ -81,8 +82,8 @@ def create_settlement(
         period_start=data.period_start,
         period_end=data.period_end,
         total_litres=round(total_litres, 1),
-        calculated_amount=round(calculated_amount, 2),
-        approved_amount=round(calculated_amount, 2),
+        calculated_amount=calculated_amount,
+        approved_amount=calculated_amount,
         paid_amount=0.0,
         payment_mode=data.payment_mode,
         reference_no=data.reference_no,
@@ -144,7 +145,7 @@ def update_settlement_status(
         raise HTTPException(status_code=422, detail="Paid amount cannot exceed the approved amount.")
 
     settlement.status = "completed"
-    settlement.paid_amount = round(paid, 2)
+    settlement.paid_amount = q2(paid)
     if data.reference_no:
         settlement.reference_no = data.reference_no
     settlement.payment_date = data.payment_date or settlement.payment_date or datetime.date.today()

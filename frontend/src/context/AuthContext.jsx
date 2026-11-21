@@ -19,22 +19,30 @@ export function AuthProvider({ children }) {
 
   const [loading, setLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('dairysathi_token');
+  // Clears local UI state only (also used when the server already rejected the session).
+  const clearSession = useCallback(() => {
     localStorage.removeItem('dairysathi_user');
     setUser(null);
   }, []);
 
-  // api.js dispatches this when the server rejects the token (expired / deactivated account).
+  // Explicit logout also asks the server to expire the httpOnly session cookie.
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch (e) { /* cookie may already be gone; still clear local state */ }
+    clearSession();
+  }, [clearSession]);
+
+  // api.js dispatches this when the server rejects the session (expired / deactivated account).
   useEffect(() => {
-    window.addEventListener(UNAUTHORIZED_EVENT, logout);
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, logout);
-  }, [logout]);
+    window.addEventListener(UNAUTHORIZED_EVENT, clearSession);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, clearSession);
+  }, [clearSession]);
 
   useEffect(() => {
     async function initAuth() {
-      const token = localStorage.getItem('dairysathi_token');
-      if (token) {
+      // The cached profile is only a hint that a session may exist; the cookie is the credential.
+      if (localStorage.getItem('dairysathi_user')) {
         try {
           const profile = await api.getMe();
           setUser(profile);
@@ -47,18 +55,17 @@ export function AuthProvider({ children }) {
           // Only drop the session when the server rejected it; keep it on transient network errors.
           if (err.status === 401 || err.status === 403) {
             console.warn("Session expired or invalid, logging out:", err.message);
-            logout();
+            clearSession();
           }
         }
       }
       setLoading(false);
     }
     initAuth();
-  }, [logout]);
+  }, [clearSession]);
 
   const loginAdmin = async (credentials) => {
     const res = await api.loginAdmin(credentials);
-    localStorage.setItem('dairysathi_token', res.access_token);
     const profile = {
       role: 'admin',
       id: res.user_id,
@@ -76,7 +83,6 @@ export function AuthProvider({ children }) {
 
   const loginFarmer = async (credentials) => {
     const res = await api.loginFarmer(credentials);
-    localStorage.setItem('dairysathi_token', res.access_token);
     const profile = {
       role: 'farmer',
       id: res.user_id,

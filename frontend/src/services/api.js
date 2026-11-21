@@ -1,8 +1,13 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Default: the API on port 8000 of whatever host served this page, so the app works when opened as
+// http://localhost:5174 or via a LAN IP like http://192.168.1.20:5174 (cookies then stay same-site).
+// Set VITE_API_URL to override (e.g. a deployed API on another domain).
+const API_BASE = import.meta.env.VITE_API_URL
+  || `${window.location.protocol}//${window.location.hostname}:8000/api`;
 
 export const UNAUTHORIZED_EVENT = 'dairysathi:unauthorized';
+const CSRF_HEADER_VALUE = 'dairysathi-web';
 
-function buildQuery(params = {}) {
+export function buildQuery(params = {}) {
   const sp = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') sp.append(k, v);
@@ -12,7 +17,7 @@ function buildQuery(params = {}) {
 }
 
 // FastAPI returns `detail` as a string, or as a list of validation errors.
-function formatErrorDetail(detail) {
+export function formatErrorDetail(detail) {
   if (!detail) return null;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
@@ -27,23 +32,24 @@ function formatErrorDetail(detail) {
 }
 
 async function request(endpoint, options = {}) {
-  const token = localStorage.getItem('dairysathi_token');
+  // The session lives in an httpOnly cookie that JavaScript cannot read, so there is no token to
+  // attach. The custom header is the CSRF guard the API requires on cookie-authenticated writes.
   const headers = {
     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    'X-Requested-With': CSRF_HEADER_VALUE,
     ...(options.headers || {})
   };
 
   let res;
   try {
-    res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers, credentials: 'include' });
   } catch (err) {
     throw new Error('Network connection unavailable. Please check internet connection.');
   }
 
-  if (res.status === 401 && token && !endpoint.startsWith('/auth/admin/login') && !endpoint.startsWith('/auth/farmer/login')) {
-    // Session expired/invalid: clear storage and tell the app so React state/routing follow.
-    localStorage.removeItem('dairysathi_token');
+  const isLoginCall = endpoint.startsWith('/auth/admin/login') || endpoint.startsWith('/auth/farmer/login');
+  if (res.status === 401 && !isLoginCall) {
+    // Session expired/invalid: clear the cached profile and tell the app so React state/routing follow.
     localStorage.removeItem('dairysathi_user');
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
   }
@@ -85,6 +91,7 @@ export const api = {
   loginAdmin: (data) => request('/auth/admin/login', { method: 'POST', body: JSON.stringify(data) }),
   loginFarmer: (data) => request('/auth/farmer/login', { method: 'POST', body: JSON.stringify(data) }),
   getMe: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Farmers
   getFarmers: (params = {}) => request(`/farmers${buildQuery(params)}`),

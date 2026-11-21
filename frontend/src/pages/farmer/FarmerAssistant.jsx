@@ -3,8 +3,10 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { t } from '../../i18n';
 import {
-  AssistantIcon, SendIcon, MicIcon, SpeakerIcon,
-  ShieldCheckIcon, AlertTriangleIcon, InfoIcon
+  SendIcon,
+  MicIcon,
+  SpeakerIcon,
+  ShieldCheckIcon
 } from '../../components/Icons';
 
 export function FarmerAssistant() {
@@ -183,7 +185,7 @@ export function FarmerAssistant() {
         <a
           href={`tel:${vetContact?.phone || user?.cooperative?.vet_phone || '9845123456'}`}
           className="btn btn-secondary touch-target"
-          style={{ minHeight: 38, padding: '0.35rem 0.75rem', fontSize: '0.82rem' }}
+          style={{ minHeight: 38, padding: '0.35rem 0.75rem', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: '0.5rem' }}
         >
           {language === 'kn' ? 'ಕರೆ ಮಾಡಿ' : 'Call Vet'}
         </a>
@@ -211,7 +213,10 @@ export function FarmerAssistant() {
               fontWeight: 600,
               whiteSpace: 'nowrap',
               color: 'var(--text-main)',
-              minHeight: 36
+              minHeight: 36,
+              // Keep each chip at its natural width; the row scrolls horizontally instead of
+              // squeezing the chips (which made their text overflow and overlap).
+              flexShrink: 0
             }}
           >
             {s.text}
@@ -262,11 +267,12 @@ export function FarmerAssistant() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
+                flexWrap: 'wrap',
                 marginTop: '0.25rem',
                 fontSize: '0.72rem',
                 color: 'var(--text-muted)'
               }}>
-                <span>{m.timestamp}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{m.timestamp}</span>
                 {!isUser && (
                   <>
                     <span>•</span>

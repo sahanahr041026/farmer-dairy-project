@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import {
-  UsersIcon, MilkIcon, ShieldCheckIcon, CalendarIcon,
-  SunIcon, MoonIcon, ArrowRightIcon, PlusIcon
+  UsersIcon,
+  MilkIcon,
+  ShieldCheckIcon,
+  CalendarIcon,
+  ArrowRightIcon,
+  PlusIcon
 } from '../../components/Icons';
 import { CollectionTrendChart, QualityBarChart } from '../../components/Charts';
 

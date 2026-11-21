@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { t } from '../i18n';
-import { MilkIcon, UsersIcon, ShieldCheckIcon, AssistantIcon, DownloadIcon, SMSIcon, ArrowRightIcon } from '../components/Icons';
+import {} from '../i18n';
+import { MilkIcon, ShieldCheckIcon, AssistantIcon, DownloadIcon, SMSIcon, ArrowRightIcon } from '../components/Icons';
 
 export function LandingPage() {
   const { language, loginAdmin, loginFarmer } = useAuth();

@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app import models, schemas
 from app.security import (
     verify_password, hash_password, password_needs_rehash, create_access_token,
-    get_current_user_payload, check_login_allowed, record_login_failure, clear_login_failures
+    get_current_user_payload, check_login_allowed, record_login_failure, clear_login_failures,
+    set_session_cookie, clear_session_cookie
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -22,7 +23,7 @@ def _find_cooperative(db: Session, code: str):
 
 
 @router.post("/admin/login", response_model=schemas.TokenResponse)
-def admin_login(req: schemas.AdminLoginRequest, request: Request, db: Session = Depends(get_db)):
+def admin_login(req: schemas.AdminLoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """Authenticates dairy cooperative administrator."""
     ident = req.username_or_email.strip()
     throttle = ("admin", req.cooperative_code, ident, request.client.host if request.client else "")
@@ -63,6 +64,7 @@ def admin_login(req: schemas.AdminLoginRequest, request: Request, db: Session = 
         "cooperative_id": coop.id,
         "username": admin.username
     })
+    set_session_cookie(response, token)
 
     return schemas.TokenResponse(
         access_token=token,
@@ -77,7 +79,7 @@ def admin_login(req: schemas.AdminLoginRequest, request: Request, db: Session = 
     )
 
 @router.post("/farmer/login", response_model=schemas.TokenResponse)
-def farmer_login(req: schemas.FarmerLoginRequest, request: Request, db: Session = Depends(get_db)):
+def farmer_login(req: schemas.FarmerLoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     """Authenticates farmer using cooperative code, farmer ID/phone, and PIN."""
     ident = req.farmer_uid_or_phone.strip()
     # Throttle per account (cooperative + farmer) so a 4-digit PIN cannot be brute-forced
@@ -121,6 +123,7 @@ def farmer_login(req: schemas.FarmerLoginRequest, request: Request, db: Session 
         "cooperative_id": coop.id,
         "farmer_uid": farmer.farmer_uid
     })
+    set_session_cookie(response, token)
 
     return schemas.TokenResponse(
         access_token=token,
@@ -133,6 +136,13 @@ def farmer_login(req: schemas.FarmerLoginRequest, request: Request, db: Session 
         farmer_uid=farmer.farmer_uid,
         language=account.language_preference or "en"
     )
+
+@router.post("/logout")
+def logout(response: Response):
+    """Clears the httpOnly session cookie."""
+    clear_session_cookie(response)
+    return {"status": "logged_out"}
+
 
 @router.get("/me")
 def get_current_user_info(

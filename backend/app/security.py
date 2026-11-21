@@ -5,7 +5,7 @@ import base64
 import os
 import datetime
 from typing import Optional, Dict, Any
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.config import settings
@@ -131,11 +131,50 @@ def decode_access_token(token: str) -> Dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or malformed token")
 
-# Dependency for current authenticated user
-def get_current_user_payload(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)) -> Dict[str, Any]:
-    if not credentials or not credentials.credentials:
+CSRF_HEADER = "X-Requested-With"
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=token,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.COOKIE_SAMESITE.lower(),
+        path="/",
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.COOKIE_NAME,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE.lower(),
+    )
+
+
+# Dependency for current authenticated user.
+# Accepts an Authorization: Bearer token (API clients) or the httpOnly session cookie (web app).
+def get_current_user_payload(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)
+) -> Dict[str, Any]:
+    if credentials and credentials.credentials:
+        return decode_access_token(credentials.credentials)
+
+    cookie_token = request.cookies.get(settings.COOKIE_NAME)
+    if not cookie_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication credentials missing")
-    return decode_access_token(credentials.credentials)
+
+    # Cookie auth is ambient, so state-changing requests need CSRF protection: a custom header
+    # cannot be sent cross-origin without a CORS preflight, which only allowed origins pass.
+    if request.method not in SAFE_METHODS and request.headers.get(CSRF_HEADER) != settings.CSRF_HEADER_VALUE:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing CSRF header")
+    return decode_access_token(cookie_token)
 
 def get_current_admin(
     payload: Dict[str, Any] = Depends(get_current_user_payload),

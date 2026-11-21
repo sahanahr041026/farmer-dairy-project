@@ -4,8 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { t } from '../../i18n';
 import {
-  MilkIcon, CattleIcon, AssistantIcon, SunIcon, MoonIcon,
-  SpeakerIcon, ArrowRightIcon, CalendarIcon, ShieldCheckIcon, PhoneIcon
+  MilkIcon,
+  CattleIcon,
+  AssistantIcon,
+  SunIcon,
+  MoonIcon,
+  SpeakerIcon,
+  CalendarIcon,
+  ShieldCheckIcon
 } from '../../components/Icons';
 
 export function FarmerHome() {
@@ -14,7 +20,7 @@ export function FarmerHome() {
   const [passbookSummary, setPassbookSummary] = useState(null);
   const [rateRule, setRateRule] = useState(null);
   const [nextReminder, setNextReminder] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {

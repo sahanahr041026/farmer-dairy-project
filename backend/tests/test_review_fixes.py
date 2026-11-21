@@ -105,6 +105,7 @@ def test_farmer_cannot_mark_other_farmers_notification_read():
 
 
 def test_csv_export_requires_auth_header():
+    client.cookies.clear()  # earlier logins in this module left a session cookie
     assert client.get("/api/reports/export/collections-csv").status_code == 401
     r = client.get("/api/reports/export/collections-csv", headers=_admin_headers())
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import {
-  UsersIcon, SearchIcon, PlusIcon, EditIcon,
-  CattleIcon, CheckCircleIcon, AlertTriangleIcon, DownloadIcon
+  SearchIcon,
+  PlusIcon,
+  CattleIcon,
+  DownloadIcon
 } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { ShieldCheckIcon, PlusIcon, CheckCircleIcon, AlertTriangleIcon } from '../../components/Icons';
+import { PlusIcon } from '../../components/Icons';
 import { Modal } from '../../components/Modal';
 
 export function AdminPayments() {
   const [farmers, setFarmers] = useState([]);
   const [settlements, setSettlements] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   // Settlement Generator Modal
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
@@ -24,7 +24,7 @@ export function AdminPayments() {
   const [markingSettlement, setMarkingSettlement] = useState(null);
   const [refNumber, setRefNumber] = useState('');
   const [payDate, setPayDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [payModeSelected, setPayModeSelected] = useState('Direct Deposit');
+  const [_payModeSelected, _setPayModeSelected] = useState('Direct Deposit');
 
   const loadData = async () => {
     try {

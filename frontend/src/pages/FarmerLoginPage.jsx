@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { t } from '../i18n';
+import {} from '../i18n';
 import { MilkIcon, AlertTriangleIcon } from '../components/Icons';
 
 export function FarmerLoginPage() {
@@ -13,7 +13,7 @@ export function FarmerLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { loginFarmer, language, setLanguage } = useAuth();
+  const { loginFarmer, language, _setLanguage } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {

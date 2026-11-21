@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { TrendingUpIcon, CheckCircleIcon, AlertTriangleIcon } from '../../components/Icons';
+import {} from '../../components/Icons';
 
 export function AdminRates() {
-  const [currentRule, setCurrentRule] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [_currentRule, setCurrentRule] = useState(null);
+  const [_loading, setLoading] = useState(true);
 
   // Form State
   const [ruleName, setRuleName] = useState('Cooperative Quality Procurement Rule');

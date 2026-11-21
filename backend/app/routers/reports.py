@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app import models
+from app.money import q2
 from app.security import get_current_admin
 
 router = APIRouter(prefix="/reports", tags=["Reports & Analytics"])
@@ -67,17 +68,17 @@ def get_admin_dashboard_summary(
             "total_litres": round(today_litres, 1),
             "morning_litres": round(today_morning, 1),
             "evening_litres": round(today_evening, 1),
-            "amount": round(today_amount, 2),
+            "amount": q2(today_amount),
             "entries_count": today_count
         },
         "monthly_collection": {
             "total_litres": round(monthly_litres, 1),
-            "total_amount": round(monthly_amount, 2),
+            "total_amount": q2(monthly_amount),
             "avg_daily_litres": round(monthly_litres / max(today.day, 1), 1)
         },
         "financials": {
-            "pending_amount": round(pending_payouts, 2),
-            "completed_settlements": round(completed_settlements_amount, 2)
+            "pending_amount": q2(pending_payouts),
+            "completed_settlements": q2(completed_settlements_amount)
         },
         "upcoming_vaccinations": upcoming_reminders
     }
@@ -130,7 +131,7 @@ def get_collection_trends(
             "morning": round(item["morning"], 1),
             "evening": round(item["evening"], 1),
             "total": round(item["total"], 1),
-            "amount": round(item["amount"], 2)
+            "amount": q2(item["amount"])
         })
 
     return trend_data

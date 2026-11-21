@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
 from app import models, schemas
+from app.money import q2
 from app.security import get_current_admin, get_current_farmer, hash_password
 
 router = APIRouter(prefix="/farmers", tags=["Farmer Management"])
@@ -62,7 +63,7 @@ def get_farmers(
         resp = schemas.FarmerResponse.model_validate(f)
         resp.cattle_count = cattle_counts.get(f.id, 0)
         resp.total_litres_month = round(monthly_litres.get(f.id) or 0.0, 1)
-        resp.pending_payout = round(pending_amounts.get(f.id) or 0.0, 2)
+        resp.pending_payout = q2(pending_amounts.get(f.id) or 0.0)
         result.append(resp)
 
     return result
@@ -160,7 +161,7 @@ def get_farmer_details(
 
     resp = schemas.FarmerResponse.model_validate(farmer)
     resp.cattle_count = cattle_count
-    resp.pending_payout = round(pending_amount, 2)
+    resp.pending_payout = q2(pending_amount)
     return resp
 
 @router.put("/{farmer_id}", response_model=schemas.FarmerResponse)

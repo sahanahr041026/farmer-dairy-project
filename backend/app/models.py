@@ -1,8 +1,15 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 from app.timeutil import utcnow
+
+# Money/rate columns are exact NUMERIC in the database; asdecimal=False hands the app a float
+# that is already 2-dp (all arithmetic goes through app.money).
+Money = Numeric(12, 2, asdecimal=False)
+Rate = Numeric(10, 2, asdecimal=False)
+RateStep = Numeric(8, 4, asdecimal=False)
+
 
 class Cooperative(Base):
     __tablename__ = "cooperatives"
@@ -147,18 +154,18 @@ class MilkRateRule(Base):
     rule_name = Column(String(100), nullable=False, default="Standard Quality Matrix (Demo)")
     version = Column(String(20), nullable=False, default="1.0")
     calculation_method = Column(String(50), nullable=False, default="fat_snf_formula") # "fat_snf_formula" or "flat_rate"
-    flat_rate = Column(Float, nullable=False, default=40.0) # Used when calculation_method == 'flat_rate'
-    base_rate = Column(Float, nullable=False, default=40.0) # Base rate per litre at standard quality
+    flat_rate = Column(Rate, nullable=False, default=40.0) # Used when calculation_method == 'flat_rate'
+    base_rate = Column(Rate, nullable=False, default=40.0) # Base rate per litre at standard quality
     base_fat = Column(Float, nullable=False, default=4.0)
     base_snf = Column(Float, nullable=False, default=8.5)
-    fat_rate_step = Column(Float, nullable=False, default=0.45) # Rate adjustment per 0.1% fat diff
-    snf_rate_step = Column(Float, nullable=False, default=0.30) # Rate adjustment per 0.1% snf diff
+    fat_rate_step = Column(RateStep, nullable=False, default=0.45) # Rate adjustment per 0.1% fat diff
+    snf_rate_step = Column(RateStep, nullable=False, default=0.30) # Rate adjustment per 0.1% snf diff
     min_fat = Column(Float, nullable=False, default=2.0)
     max_fat = Column(Float, nullable=False, default=12.0)
     min_snf = Column(Float, nullable=False, default=5.0)
     max_snf = Column(Float, nullable=False, default=12.0)
-    min_rate = Column(Float, nullable=False, default=20.0)
-    max_rate = Column(Float, nullable=False, default=80.0)
+    min_rate = Column(Rate, nullable=False, default=20.0)
+    max_rate = Column(Rate, nullable=False, default=80.0)
     effective_date = Column(Date, nullable=False, default=datetime.date.today)
     effective_to = Column(Date, nullable=True)
     is_active = Column(Boolean, default=True)
@@ -181,8 +188,8 @@ class MilkCollection(Base):
     quantity_litres = Column(Float, nullable=False)
     fat_percentage = Column(Float, nullable=True)
     snf_percentage = Column(Float, nullable=True)
-    rate_per_litre = Column(Float, nullable=False)
-    total_amount = Column(Float, nullable=False)
+    rate_per_litre = Column(Money, nullable=False)
+    total_amount = Column(Money, nullable=False)
     rate_rule_id = Column(Integer, ForeignKey("milk_rate_rules.id"), nullable=True)
     calculation_method = Column(String(50), default="fat_snf_formula") # "fat_snf_formula" or "flat_rate"
     record_status = Column(String(30), default="recorded") # "recorded", "corrected"
@@ -216,10 +223,10 @@ class MilkRecordAudit(Base):
     new_fat = Column(Float, nullable=True)
     previous_snf = Column(Float, nullable=True)
     new_snf = Column(Float, nullable=True)
-    previous_rate = Column(Float, nullable=True)
-    new_rate = Column(Float, nullable=True)
-    previous_amount = Column(Float, nullable=False)
-    new_amount = Column(Float, nullable=False)
+    previous_rate = Column(Money, nullable=True)
+    new_rate = Column(Money, nullable=True)
+    previous_amount = Column(Money, nullable=False)
+    new_amount = Column(Money, nullable=False)
     reason = Column(String(255), nullable=False)
     corrected_at = Column(DateTime, default=utcnow)
 
@@ -236,9 +243,9 @@ class PaymentSettlement(Base):
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
     total_litres = Column(Float, nullable=False)
-    calculated_amount = Column(Float, nullable=False)
-    approved_amount = Column(Float, nullable=False)
-    paid_amount = Column(Float, default=0.0)
+    calculated_amount = Column(Money, nullable=False)
+    approved_amount = Column(Money, nullable=False)
+    paid_amount = Column(Money, default=0.0)
     payment_mode = Column(String(50), default="Direct Deposit") # Direct Deposit, Bank Transfer, Cash
     reference_no = Column(String(100), nullable=True)
     payment_date = Column(Date, nullable=True)
@@ -367,7 +374,7 @@ class PassbookDownloadAudit(Base):
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
     record_count = Column(Integer, default=0)
-    total_milk_value = Column(Float, default=0.0)
+    total_milk_value = Column(Money, default=0.0)
     reference_number = Column(String(100), nullable=False)
     generated_at = Column(DateTime, default=utcnow)
 

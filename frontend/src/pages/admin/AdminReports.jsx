@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import { DownloadIcon, TrendingUpIcon, CalendarIcon, CheckCircleIcon } from '../../components/Icons';
+import { DownloadIcon } from '../../components/Icons';
 
 export function AdminReports() {
   const [summary, setSummary] = useState(null);
@@ -9,7 +9,7 @@ export function AdminReports() {
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {

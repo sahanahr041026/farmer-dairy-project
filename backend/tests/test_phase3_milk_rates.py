@@ -144,6 +144,7 @@ def run_phase3_tests():
     print("\n[STEP 4] Testing Multi-Tenant & Role Authorization...")
 
     # Unauthenticated user cannot create record
+    client.cookies.clear()  # drop the session cookie set by earlier logins
     unauth_res = client.post("/api/milk", json={
         "farmer_id": farmer_1["id"],
         "collection_date": datetime.date.today().isoformat(),

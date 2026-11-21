@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
-import { t } from '../../i18n';
-import { BellIcon, CheckCircleIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon } from '../../components/Icons';
+import {} from '../../i18n';
+import { BellIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon } from '../../components/Icons';
 
 export function FarmerNotifications() {
   const { language } = useAuth();
