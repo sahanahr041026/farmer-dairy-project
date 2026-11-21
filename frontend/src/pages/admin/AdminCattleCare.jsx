@@ -68,8 +68,8 @@ export function AdminCattleCare() {
       const [fList, cList, rList, tList] = await Promise.all([
         api.getFarmers().catch(() => []),
         api.getCattle().catch(() => []),
-        api.getReminders(),
-        api.getReminderTemplates().catch(() => []).catch(() => [])
+        api.getReminders().catch(() => []),
+        api.getReminderTemplates().catch(() => [])
       ]);
       setFarmers(fList);
       setCattleList(cList);
@@ -95,6 +95,42 @@ export function AdminCattleCare() {
     setRemTitleKn(tpl.title_kn || '');
     setCareType(tpl.care_type);
     setVetNotes(tpl.default_notes || '');
+  };
+
+  const handleOpenEditCattle = (c) => {
+    setEditingCattle(c);
+    setEditName(c.name || '');
+    setEditBreed(c.breed || 'Gir');
+    setEditAge(c.age_years ?? '');
+    setEditYield(c.daily_yield_estimate ?? '');
+    setEditStatus(c.milking_status || 'Milking');
+    setEditNotes(c.health_notes || '');
+    setEditSuccess('');
+    setEditError('');
+  };
+
+  const handleSaveEditCattle = async (e) => {
+    e.preventDefault();
+    if (!editingCattle) return;
+    setEditError('');
+    try {
+      await api.updateCattle(editingCattle.id, {
+        name: editName.trim(),
+        breed: editBreed,
+        age_years: editAge === '' ? null : parseFloat(editAge),
+        daily_yield_estimate: editYield === '' ? 0 : parseFloat(editYield),
+        milking_status: editStatus,
+        health_notes: editNotes
+      });
+      setEditSuccess('Cattle profile updated successfully.');
+      loadData();
+      setTimeout(() => {
+        setEditingCattle(null);
+        setEditSuccess('');
+      }, 1200);
+    } catch (err) {
+      setEditError(err.message);
+    }
   };
 
   const handleCreateReminder = async (e) => {
@@ -148,7 +184,15 @@ export function AdminCattleCare() {
     }
   };
 
-  const handleCompleteReminder = async (remId) => {
+  const openCompletionModal = (rem) => {
+    setCompletingRem(rem);
+    setCompletionNotes(rem.veterinarian_notes || '');
+    setIsCompletionModalOpen(true);
+  };
+
+  const handleConfirmCompletion = async (e) => {
+    e.preventDefault();
+    if (!completingRem) return;
     try {
       await api.updateReminder(completingRem.id, {
         status: 'completed',
@@ -197,7 +241,7 @@ export function AdminCattleCare() {
 
   return (
     <div style={{ animation: 'fadeIn 0.2s ease' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>
             Cattle Health, Vaccination & Reminders
@@ -237,11 +281,12 @@ export function AdminCattleCare() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-        {/* Reminders List */}
-        <div className="card">
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}>
-            Active Health Schedules & Camps ({reminders.filter(r => r.status !== 'completed').length})
-          </h3>
+        {/* Reminders List Card */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
+              Care Schedules ({filteredReminders.length})
+            </h3>
 
             <select
               className="form-input"
@@ -259,10 +304,11 @@ export function AdminCattleCare() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', maxHeight: 520, overflowY: 'auto' }}>
-            {filteredReminders.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No reminders scheduled.</p>
+            {filteredReminders.map((r) => {
+              const isOverdue = r.status === 'overdue';
               const isDueSoon = r.status === 'due_soon';
-            ) : (              const isCancelled = r.status === 'cancelled';
+              const isCompleted = r.status === 'completed';
+              const isCancelled = r.status === 'cancelled';
 
               let borderAccent = 'var(--status-pending)';
               let badgeBg = '#eff6ff';
@@ -286,31 +332,45 @@ export function AdminCattleCare() {
                 badgeColor = '#374151';
               }
 
-              reminders.map((r) => (
+              return (
                 <div
                   key={r.id}
                   style={{
-                    padding: '0.75rem',
-                    borderRadius: 6,
-                    backgroundColor: 'var(--bg-main)',
-                    borderLeft: `4px solid ${r.status === 'overdue' ? 'var(--status-overdue)' : (r.status === 'completed' ? 'var(--status-settled)' : 'var(--status-pending)')}`,
+                    padding: '0.9rem',
+                    backgroundColor: 'var(--bg-page)',
+                    borderRadius: 8,
+                    borderLeft: `5px solid ${borderAccent}`,
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+                    flexDirection: 'column',
+                    gap: '0.5rem'
                   }}
                 >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span className={`badge badge-${r.status}`}>{r.status}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                        {r.care_type}
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                      {r.title}
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                      Farmer: {farmers.find(f => f.id === r.farmer_id)?.full_name || 'Farmer'} | Due: <strong>{r.due_date}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 4,
+                          backgroundColor: badgeBg,
+                          color: badgeColor,
+                          textTransform: 'uppercase'
+                        }}>
+                          {r.status.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                          {r.care_type}
+                        </span>
+                      </div>
+                      <h4 style={{ fontWeight: 700, fontSize: '0.98rem', margin: '0.2rem 0' }}>{r.title}</h4>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                        Farmer: <strong>{r.farmer_name || `Farmer #${r.farmer_id}`}</strong>
+                        {r.cattle_name ? ` • Animal: ${r.cattle_name} (${r.cattle_tag})` : ' • Herd-wide'}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', marginTop: '0.2rem' }}>
+                        Due: <strong style={{ color: isOverdue ? '#dc2626' : (isDueSoon ? '#d97706' : 'var(--text-main)') }}>{r.due_date}</strong>
+                      </div>
                     </div>
                   </div>
 
@@ -366,8 +426,8 @@ export function AdminCattleCare() {
                     )}
                   </div>
                 </div>
-              ))
-            )}
+              );
+            })}
 
             {filteredReminders.length === 0 && (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
@@ -377,7 +437,7 @@ export function AdminCattleCare() {
           </div>
         </div>
 
-        {/* Cattle List */}
+        {/* Registered Herd Table */}
         <div className="card">
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)', marginBottom: '1rem' }}>
             Registered Cattle Herd ({cattleList.length})

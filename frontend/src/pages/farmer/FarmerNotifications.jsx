@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { t } from '../../i18n';
-import { BellIcon, CheckCircleIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon, SpeakerIcon } from '../../components/Icons';
+import { BellIcon, CheckCircleIcon, MilkIcon, CattleIcon, InfoIcon, SpeakerIcon } from '../../components/Icons';
 
 export function FarmerNotifications() {
   const { language } = useAuth();
@@ -49,16 +49,6 @@ const handleMarkAllRead = async () => {
     window.speechSynthesis.cancel();
     const text = `${title}. ${body || ''}`;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleSpeakNotification = (n) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const title = language === 'kn' ? (n.title_kn || n.title) : n.title;
-    const body = language === 'kn' ? (n.message_kn || n.message) : n.message;
-    const utterance = new SpeechSynthesisUtterance(`${title}. ${body}`);
     utterance.lang = language === 'kn' ? 'kn-IN' : 'en-IN';
     window.speechSynthesis.speak(utterance);
   };

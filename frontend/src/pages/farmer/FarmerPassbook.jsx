@@ -378,7 +378,7 @@ export function FarmerPassbook() {
           }}>
             <strong>{language === 'kn' ? 'ಗಮನಿಸಿ:' : 'Notice:'}</strong> {t("not_received_notice", language)}
           </div>
-        </>
+        </div>
       )}
 
       {/* Milk Records List */}
