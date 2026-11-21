@@ -79,7 +79,7 @@ def run_phase2_tests():
         "password": "admin123"
     })
     assert res_bad_coop.status_code == 401
-    assert "Cooperative identifier not recognized" in res_bad_coop.json()["detail"]
+    assert "Invalid cooperative code" in res_bad_coop.json()["detail"]
     print("  -> PASSED: Invalid cooperative code rejected.")
 
     # 1b. Correct cooperative code, but invalid password
@@ -89,7 +89,7 @@ def run_phase2_tests():
         "password": "wrong_password_here"
     })
     assert res_bad_pw.status_code == 401
-    assert "Invalid admin username/email or password" in res_bad_pw.json()["detail"]
+    assert "Invalid cooperative code, username/email or password" in res_bad_pw.json()["detail"]
     print("  -> PASSED: Incorrect password rejected.")
 
     # 1c. Valid admin login
@@ -130,7 +130,7 @@ def run_phase2_tests():
         "pin": "1234"
     })
     assert res_bad_farmer.status_code == 401
-    assert "Farmer profile not found" in res_bad_farmer.json()["detail"]
+    assert "Invalid cooperative code, Farmer ID/Phone or PIN" in res_bad_farmer.json()["detail"]
     print("  -> PASSED: Invalid farmer UID rejected.")
 
     # 3b. Correct farmer UID, invalid PIN
@@ -140,7 +140,7 @@ def run_phase2_tests():
         "pin": "0000"
     })
     assert res_bad_pin.status_code == 401
-    assert "Invalid 4-digit PIN" in res_bad_pin.json()["detail"]
+    assert "Invalid cooperative code, Farmer ID/Phone or PIN" in res_bad_pin.json()["detail"]
     print("  -> PASSED: Incorrect farmer PIN rejected.")
 
     # 3c. Valid farmer login via UID

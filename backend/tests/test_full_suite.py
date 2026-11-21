@@ -30,7 +30,7 @@ def run_compliance_tests():
     farmers = client.get("/api/farmers", headers=admin_headers).json()
     farmer_1 = farmers[0] # Basavaraj Patil (DS-FARM-101)
     
-    unique_date = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    unique_date = (datetime.date.today() - datetime.timedelta(days=400)).isoformat()
     milk_entry = client.post("/api/milk?allow_duplicate=true", headers=admin_headers, json={
         "farmer_id": farmer_1["id"],
         "collection_date": unique_date,
@@ -56,7 +56,7 @@ def run_compliance_tests():
     farmer_token = farmer_auth.json()["access_token"]
     farmer_headers = {"Authorization": f"Bearer {farmer_token}"}
 
-    passbook = client.get("/api/passbook", headers=farmer_headers).json()
+    passbook = client.get(f"/api/passbook?start_date={unique_date}", headers=farmer_headers).json()
     found_rec = next((r for r in passbook["records"] if r["id"] == record_id), None)
     assert found_rec is not None, "Milk entry not automatically synchronized to farmer passbook!"
     assert found_rec["quantity_litres"] == 14.5
@@ -81,7 +81,7 @@ def run_compliance_tests():
     })
     assert correct_resp.status_code == 200
 
-    passbook_updated = client.get("/api/passbook", headers=farmer_headers).json()
+    passbook_updated = client.get(f"/api/passbook?start_date={unique_date}", headers=farmer_headers).json()
     corrected_rec = next((r for r in passbook_updated["records"] if r["id"] == record_id), None)
     assert corrected_rec["quantity_litres"] == 15.5
     assert len(corrected_rec["audits"]) >= 1
@@ -92,7 +92,7 @@ def run_compliance_tests():
     print("\n[TEST 6] Testing Payment Settlement Synchronization...")
     settlement = client.post("/api/payments/settle", headers=admin_headers, json={
         "farmer_id": farmer_1["id"],
-        "period_start": (datetime.date.today() - datetime.timedelta(days=7)).isoformat(),
+        "period_start": unique_date,
         "period_end": datetime.date.today().isoformat(),
         "payment_mode": "Direct Deposit"
     })
@@ -182,7 +182,7 @@ def run_compliance_tests():
         "pin": "1234"
     })
     assert bad_farmer.status_code == 401
-    assert "Farmer profile not found" in bad_farmer.json()["detail"]
+    assert "Invalid cooperative code, Farmer ID/Phone or PIN" in bad_farmer.json()["detail"]
     print("  -> PASSED: Informative error messages returned on invalid inputs.")
 
     # 12. Responsive structure test

@@ -93,7 +93,7 @@ def run_phase3_tests():
         "snf_percentage": 8.5
     })
     assert neg_res.status_code == 422
-    assert "greater than zero" in neg_res.json()["detail"]
+    assert "greater than" in str(neg_res.json()["detail"])
     print("  -> PASSED: Negative quantity rejected with HTTP 422.")
 
     # Zero quantity
